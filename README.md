@@ -1,2 +1,2 @@
-# TREK-TOU-Processing
-Contains Scripts to help with the Processing of TREK TOU Output Files
+# TRAK-TOU-Processing
+Contains Scripts to help with the Processing of TRAK TOU Output Files
