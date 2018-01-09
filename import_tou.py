@@ -3,6 +3,7 @@ Contains functions to import a TREK TOU output file
 """
 
 import pandas as pd
+from simple_tou_particle import SimpleTouParticle
 
 def read_tou_blockwise(filename, zmin=None, zmax=None):
     """
@@ -35,18 +36,22 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
             else:
                 line_data = line.split()
                 line_data = [float(num) for num in line_data]
-                trajectory.append(line_data)
+                do_append = True
+                if line_data[0] == -1:
+                    do_append = False
+                if zmin is not None and zmin > line_data[3]:
+                    do_append = False
+                if zmax is not None and zmax < line_data[3]:
+                    do_append = False
+                if do_append:
+                    trajectory.append(line_data)
 
                 # if last line of trajectory block process trajectory information
                 if line_data[0] == -1:
-                    del trajectory[-1]
+                    #if trajectory == []:
+                     #   trajectory = [[-1,-1,-1,-1]]
                     #df_constants = pd.DataFrame(constants,[0])
                     df_trajectory =  pd.DataFrame(trajectory, columns=["t", "x", "y", "z"])
-                    #Filter z range
-                    if zmin:
-                        df_trajectory = df_trajectory.loc[df_trajectory["z"]>=zmin]
-                    if zmax:
-                        df_trajectory = df_trajectory.loc[df_trajectory["z"]<=zmax]
                     #yield (df_trajectory, df_constants)
                     yield (df_trajectory, constants)
                     trajectory = list()
@@ -77,46 +82,10 @@ def particles_from_tou(filename, zmin=None, zmax=None):
     return [SimpleTouParticle(trajectories[k], constants[k]) for k in range(len(trajectories))]
 
 
-class SimpleTouParticle:
-    """
-    A simple data container for particle information imported from a TOU file.
-    """
-    def __init__(self, trajectory, constants):
-        self._trajectory = trajectory
-        self._id = constants["id"]
-        self._mass = constants["mass"]
-        self._charge = constants["charge"]
-
-    @property
-    def trajectory(self):
-        """
-        Dataframe holding the TOU Data
-        """
-        return self._trajectory
-
-    @property
-    def id(self):
-        """
-        Particle ID
-        """
-        return self._id
-
-    @property
-    def mass(self):
-        """
-        Mass
-        """
-        return self._mass
-
-    @property
-    def charge(self):
-        """
-        Charge
-        """
-        return self._charge
-
-
-for particle in read_tou_blockwise("sample.TOU", zmin=3.776107E-01, zmax=3.797542E-01):
+#for particle in read_tou_blockwise("sample.TOU", zmin=3.776107E-01, zmax=3.797542E-01):
+for particle in read_tou_blockwise("sample_big.TOU"):
+#for particle in read_tou_blockwise("sample.TOU", zmin=3.776107E-01, zmax=-1):
     print(particle[1])
     print(particle[0].head())
     a = SimpleTouParticle(particle[0], particle[1])
+print("wait")
