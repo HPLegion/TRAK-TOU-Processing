@@ -80,12 +80,3 @@ def particles_from_tou(filename, zmin=None, zmax=None):
     """
     trajectories, constants = read_tou(filename, zmin, zmax)
     return [SimpleTouParticle(trajectories[k], constants[k]) for k in range(len(trajectories))]
-
-
-#for particle in read_tou_blockwise("sample.TOU", zmin=3.776107E-01, zmax=3.797542E-01):
-for particle in read_tou_blockwise("sample_big.TOU"):
-#for particle in read_tou_blockwise("sample.TOU", zmin=3.776107E-01, zmax=-1):
-    print(particle[1])
-    print(particle[0].head())
-    a = SimpleTouParticle(particle[0], particle[1])
-print("wait")
