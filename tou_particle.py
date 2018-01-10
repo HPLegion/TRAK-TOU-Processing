@@ -179,6 +179,36 @@ class TouParticle:
         return self.kin_energy_si / Q_E
 
     @property
+    def p_x(self):
+        """numpy array of normalised momentum p_x (in units of beta*gamma)"""
+        return self.beta_x * self.gamma
+
+    @property
+    def p_y(self):
+        """numpy array of normalised momentum p_y (in units of beta*gamma)"""
+        return self.beta_y * self.gamma
+
+    @property
+    def p_z(self):
+        """numpy array of normalised momentum p_z (in units of beta*gamma)"""
+        return self.beta_z * self.gamma
+
+    @property
+    def p_x_si(self):
+        """numpy array of momentum p_x (in kg/m/s)"""
+        return self.p_x * self.mass_si * C_0
+
+    @property
+    def p_y_si(self):
+        """numpy array of momentum p_y (in kg/m/s)"""
+        return self.p_y * self.mass_si * C_0
+
+    @property
+    def p_z_si(self):
+        """numpy array of momentum p_z (in kg/m/s)"""
+        return self.p_z * self.mass_si * C_0
+
+    @property
     def has_data(self):
         """returns True if trajectory frame is not empty, False otherwise"""
         return not self.tou_data.empty
