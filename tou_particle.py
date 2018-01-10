@@ -246,19 +246,23 @@ class TouParticle:
         """The angle between the particles velocity vector and the z axis (degree)"""
         return np.rad2deg(self.ang_with_z_rad)
 
+    def max_ang_with_z(self, zmin=None, zmax=None):
+        """
+        finds the maximum angle with the z axis along the trajectory, the z range can be limited
+        if the max value occurs more than once the first appearance is returned
+        returns a tuple (z, angle(z)) (angle in degrees)
+        """
+        if not zmin:
+            zmin = np.amin(self.z)
+        if not zmax:
+            zmax = np.amax(self.z)
+        mask = (zmin <= self.z) & (self.z <= zmax)
+
+        max_ang = np.amax(self.ang_with_z[mask])
+        max_z = self.z[mask][np.argmax(self.ang_with_z[mask])]
+        return (max_z, max_ang)
+
     @property
     def has_data(self):
         """returns True if trajectory frame is not empty, False otherwise"""
         return not self.tou_data.empty
-
-
-
-            # # from the betas also compute the gamma factor
-            # temp_mom = np.column_stack((self._trajectory["px"], self._trajectory["py"],
-            #                             self._trajectory["pz"]))
-            # gamma = 1/np.sqrt(1-np.linalg.norm(temp_mom, axis=1))
-
-            # # multiply beta with gamma to get the full normalised momentum
-            # self._trajectory["px"] *= gamma
-            # self._trajectory["py"] *= gamma
-            # self._trajectory["pz"] *= gamma
