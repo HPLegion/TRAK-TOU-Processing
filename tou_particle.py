@@ -14,6 +14,9 @@ class TouParticle:
     The velocity is derived from the particle position
     This makes certain assumptions about the domain edges
     See: https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.gradient.html
+
+    CHANGES TO THE INTERNAL DATA (PROPERTIES) ARE NOT FORSEEN AND WILL NOT BE HANDLED CORRECTLY
+    THEY MAY, HOWEVER, BE POSSIBLE!
     """
     def __init__(self, trajectory, constants, safe_mode=False):
         """
@@ -46,7 +49,9 @@ class TouParticle:
             self._tou_data["v_z"] = []
 
         # Initialise fields that will be computed on demand and then memorised
+        # This is for potentially more "demanding" computations where memoisation may be faster
         self._gamma = None
+        self._v_abs = None
 
     @property
     def tou_data(self):
@@ -88,7 +93,7 @@ class TouParticle:
             return self.tou_data['t'].values.copy()
         else:
             return self.tou_data['t'].values
-    
+
     @property
     def x(self):
         """numpy array of the x column (pos in m)"""
@@ -138,6 +143,18 @@ class TouParticle:
             return self.tou_data['v_z'].values
 
     @property
+    def v_abs(self):
+        """numpy array of the absolute velocity (speed, in m/s)"""
+        if self._v_abs is None:
+            v_vec = np.column_stack((self.v_x, self.v_y, self.v_z))
+            self._v_abs = np.linalg.norm(v_vec, axis=1)
+
+        if self._safe_mode:
+            return self._v_abs.copy()
+        else:
+            return self._v_abs
+
+    @property
     def beta_x(self):
         """numpy array of beta_x (velocity in units of c_0)"""
         return self.v_x / C_0
@@ -153,12 +170,16 @@ class TouParticle:
         return self.v_z / C_0
 
     @property
+    def beta_abs(self):
+        """numpy array of the absolute velocity beta (speed, in units of c_0)"""
+        return self.v_abs / C_0
+
+    @property
     def gamma(self):
         """numpy array of gamma (velocity in units of c_0)"""
         #Compute _gamma on first demand
         if self._gamma is None:
-            beta_vec = np.column_stack((self.beta_x, self.beta_y, self.beta_z))
-            self._gamma = 1/np.sqrt(1-np.linalg.norm(beta_vec, axis=1)**2)
+            self._gamma = 1/np.sqrt(1-self.beta_abs**2)
 
         if self._safe_mode:
             return self._gamma.copy()
@@ -191,6 +212,11 @@ class TouParticle:
         return self.beta_z * self.gamma
 
     @property
+    def p_abs(self):
+        """numpy array of absolute normalised momentum p (in units of beta*gamma)"""
+        return self.beta_abs * self.gamma
+
+    @property
     def p_x_si(self):
         """numpy array of momentum p_x (in kg/m/s)"""
         return self.p_x * self.mass_si * C_0
@@ -204,6 +230,16 @@ class TouParticle:
     def p_z_si(self):
         """numpy array of momentum p_z (in kg/m/s)"""
         return self.p_z * self.mass_si * C_0
+
+    @property
+    def p_abs_si(self):
+        """numpy array of absolute momentum p (in kg/m/s)"""
+        return self.p_abs * self.mass_si * C_0
+
+    @property
+    def ang_with_z_rad(self):
+        """The angle between the particles velocity vector and the z axis (radians)"""
+        return np.arccos(self.v_z/self.v_abs)
 
     @property
     def has_data(self):
