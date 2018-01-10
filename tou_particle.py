@@ -60,7 +60,12 @@ class TouParticle:
             return self._tou_data.copy()
         else:
             return self._tou_data
-
+    
+    @property
+    def has_data(self):
+        """returns True if trajectory frame is not empty, False otherwise"""
+        return not self.tou_data.empty
+    
     @property
     def pid(self):
         """Tou File Particle ID"""
@@ -261,8 +266,3 @@ class TouParticle:
         max_ang = np.amax(self.ang_with_z[mask])
         max_z = self.z[mask][np.argmax(self.ang_with_z[mask])]
         return (max_z, max_ang)
-
-    @property
-    def has_data(self):
-        """returns True if trajectory frame is not empty, False otherwise"""
-        return not self.tou_data.empty
