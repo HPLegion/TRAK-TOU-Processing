@@ -56,9 +56,6 @@ class TouParticle:
         else:
             return self._tou_data
 
-    # Alias for tou_data
-    trajectory = tou_data
-
     @property
     def id(self):
         """Tou File Particle ID"""
