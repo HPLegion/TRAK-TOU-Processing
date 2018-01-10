@@ -57,7 +57,7 @@ class TouParticle:
             return self._tou_data
 
     @property
-    def id(self):
+    def pid(self):
         """Tou File Particle ID"""
         return self._id
 
