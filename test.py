@@ -5,9 +5,6 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.constants import speed_of_light, elementary_charge, atomic_mass
 
 
-# def get_max_angle(particle):
-#     return np.max(get_angles(particle))
-
 # def get_start_transverse_offset(particle):
 #     return np.sqrt(particle.trajectory["x"].iloc[0]**2 + particle.trajectory["y"].iloc[0]**2)
 
@@ -30,12 +27,4 @@ for par in particles:
     plt.plot(par.z, par.kin_energy)
     print(par.max_ang_with_z(zmin=0.005))
 
-# plt.figure()
-# # plt.plot([get_start_transverse_offset(p) for p in particles], [get_max_angle(p) for p in particles])
-# plt.plot([p.trajectory.z[0] for p in particles], [get_start_transverse_offset(p) for p in particles])
 plt.show()
-# for p in particles:
-#     plt.plot(p.id, np.min(p.trajectory.vz),"rx")
-#     print(p.id)
-#     print(np.min(p.trajectory.vz))
-# plt.show()
