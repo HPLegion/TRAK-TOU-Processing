@@ -3,7 +3,7 @@ Contains the class SimpleTouParticle
 """
 
 import numpy as np
-
+from scipy.constants import speed_of_light as C_0
 class SimpleTouParticle:
     """
     A simple data container for particle information imported from a TOU file.
@@ -23,13 +23,13 @@ class SimpleTouParticle:
         self._charge = constants["charge"]
         # compute velocities
         if not self._trajectory.empty:
-            self._trajectory["vx"] = np.gradient(self._trajectory["x"], self._trajectory["t"])
-            self._trajectory["vy"] = np.gradient(self._trajectory["y"], self._trajectory["t"])
-            self._trajectory["vz"] = np.gradient(self._trajectory["z"], self._trajectory["t"])
+            self._trajectory["vx"] = np.gradient(self._trajectory["x"], self._trajectory["t"], edge_order=2)
+            self._trajectory["vy"] = np.gradient(self._trajectory["y"], self._trajectory["t"], edge_order=2)
+            self._trajectory["vz"] = np.gradient(self._trajectory["z"], self._trajectory["t"], edge_order=2)
         else:
+            self._trajectory["vx"] = []
             self._trajectory["vy"] = []
             self._trajectory["vz"] = []
-            self._trajectory["vx"] = []
 
     @property
     def trajectory(self):
