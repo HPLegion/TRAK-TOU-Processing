@@ -242,6 +242,11 @@ class TouParticle:
         return np.arccos(self.v_z/self.v_abs)
 
     @property
+    def ang_with_z(self):
+        """The angle between the particles velocity vector and the z axis (degree)"""
+        return np.rad2deg(self.ang_with_z_rad)
+
+    @property
     def has_data(self):
         """returns True if trajectory frame is not empty, False otherwise"""
         return not self.tou_data.empty
