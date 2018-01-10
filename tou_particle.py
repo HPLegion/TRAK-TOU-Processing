@@ -7,9 +7,9 @@ from scipy.constants import (speed_of_light as C_0,
                              atomic_mass as AMU,
                              elementary_charge as Q_E)
 
-class SimpleTouParticle:
+class TouParticle:
     """
-    A simple data container for particle information imported from a TOU file.
+    A data container for particle information imported from a TOU file.
     Also extends the trajectory data with useful particle information in an easy to access way
     The velocity is derived from the particle position
     This makes certain assumptions about the domain edges
