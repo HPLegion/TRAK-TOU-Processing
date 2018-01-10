@@ -3,7 +3,7 @@ Contains functions to import a TREK TOU output file
 """
 
 import pandas as pd
-from simple_tou_particle import SimpleTouParticle
+from tou_particle import TouParticle
 
 def read_tou_blockwise(filename, zmin=None, zmax=None):
     """
@@ -74,9 +74,9 @@ def read_tou(filename, zmin=None, zmax=None):
 
 def particles_from_tou(filename, zmin=None, zmax=None):
     """
-    Reads a TOU file and returns a list of SimpleTouParticle objects holding the
+    Reads a TOU file and returns a list of TouParticle objects holding the
     relevant information in easily accesible form
     If zmin and / or zmax are set, they limit the imported trajectory range by z value
     """
     trajectories, constants = read_tou(filename, zmin, zmax)
-    return [SimpleTouParticle(trajectories[k], constants[k]) for k in range(len(trajectories))]
+    return [TouParticle(trajectories[k], constants[k]) for k in range(len(trajectories))]
