@@ -33,18 +33,18 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
             elif "Particle" in line:
                 line_data = line.split()
                 particle_id = int(line_data[1])
-                if "Current" in line_data:
-                    ind = line_data.index("Current")
+                if "Current:" in line_data:
+                    ind = line_data.index("Current:")
                     current = float(line_data[ind + 1]) # in proton masses or amu ?
                 else:
                     current = float("nan")
-                if "Mass" in line_data:
-                    ind = line_data.index("Mass")
+                if "Mass:" in line_data:
+                    ind = line_data.index("Mass:")
                     mass = float(line_data[ind + 1]) # in proton masses or amu ?
                 else:
                     mass = float("nan")
-                if "Charge" in line_data:
-                    ind = line_data.index("Charge")
+                if "Charge:" in line_data:
+                    ind = line_data.index("Charge:")
                     charge = float(line_data[ind + 1]) # in proton masses or amu ?
                 else:
                     charge = float("nan")
