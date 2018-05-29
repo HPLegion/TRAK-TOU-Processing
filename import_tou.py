@@ -5,6 +5,9 @@ Contains functions to import a TREK TOU output file
 import pandas as pd
 from tou_particle import TouParticle
 
+import warnings
+warnings.warn("Uncertain Units. Current units may depend on the problem symmetry. Role of DUnit unclear.")
+
 def read_tou_blockwise(filename, zmin=None, zmax=None):
     """
     Reads a TREK TOU Trajectory Output File blockwise (one particle at a time)
@@ -18,8 +21,9 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
 
     with open(filename, mode='r') as f:
         # Skip 5 header lines
+        print("Printing Fileheader:")
         for _ in range(5):
-            f.readline()
+            print(f.readline())
 
         for line in f:
             # discard separation line
@@ -29,9 +33,22 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
             elif "Particle" in line:
                 line_data = line.split()
                 particle_id = int(line_data[1])
-                mass = float(line_data[3]) # in proton masses or amu ?
-                charge = int(float(line_data[5])) # in elementary charges ?
-                constants = {"id":particle_id, "mass":mass, "charge":charge}
+                if "Current" in line_data:
+                    ind = line_data.index("Current")
+                    current = float(line_data[ind + 1]) # in proton masses or amu ?
+                else:
+                    current = float("nan")
+                if "Mass" in line_data:
+                    ind = line_data.index("Mass")
+                    mass = float(line_data[ind + 1]) # in proton masses or amu ?
+                else:
+                    mass = float("nan")
+                if "Charge" in line_data:
+                    ind = line_data.index("Charge")
+                    charge = float(line_data[ind + 1]) # in proton masses or amu ?
+                else:
+                    charge = float("nan")
+                constants = {"id":particle_id, "mass":mass, "charge":charge, "current":current}
             # if trajectory point append to trajectory block
             else:
                 line_data = line.split()

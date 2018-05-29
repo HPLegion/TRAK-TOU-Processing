@@ -36,6 +36,7 @@ class TouParticle:
         self._id = constants["id"]
         self._mass = constants["mass"]
         self._charge = constants["charge"]
+        self._current = constants["current"]
         # compute velocities
         if self.has_data:
             # compute the beta value of all timesteps (velocity)
@@ -70,6 +71,11 @@ class TouParticle:
     def pid(self):
         """Tou File Particle ID"""
         return self._id
+
+    @property
+    def current(self):
+        """Current in unknown units"""
+        return self._current
 
     @property
     def mass(self):
