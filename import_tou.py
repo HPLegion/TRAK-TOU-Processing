@@ -35,7 +35,7 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
                 particle_id = int(line_data[1])
                 if "Current:" in line_data:
                     ind = line_data.index("Current:")
-                    current = float(line_data[ind + 1]) # in proton masses or amu ?
+                    current = float(line_data[ind + 1])
                 else:
                     current = float("nan")
                 if "Mass:" in line_data:
@@ -45,7 +45,7 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
                     mass = float("nan")
                 if "Charge:" in line_data:
                     ind = line_data.index("Charge:")
-                    charge = float(line_data[ind + 1]) # in proton masses or amu ?
+                    charge = float(line_data[ind + 1])
                 else:
                     charge = float("nan")
                 constants = {"id":particle_id, "mass":mass, "charge":charge, "current":current}
@@ -68,7 +68,7 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
                     #if trajectory == []:
                      #   trajectory = [[-1,-1,-1,-1]]
                     #df_constants = pd.DataFrame(constants,[0])
-                    df_trajectory =  pd.DataFrame(trajectory, columns=["t", "x", "y", "z"])
+                    df_trajectory = pd.DataFrame(trajectory, columns=["t", "x", "y", "z"])
                     #yield (df_trajectory, df_constants)
                     yield (df_trajectory, constants)
                     trajectory = list()

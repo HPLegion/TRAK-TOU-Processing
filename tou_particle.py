@@ -1,5 +1,5 @@
 """
-Contains the class SimpleTouParticle
+Contains the class TouParticle
 """
 
 import numpy as np
@@ -61,12 +61,12 @@ class TouParticle:
             return self._tou_data.copy()
         else:
             return self._tou_data
-    
+
     @property
     def has_data(self):
         """returns True if trajectory frame is not empty, False otherwise"""
         return not self.tou_data.empty
-    
+
     @property
     def pid(self):
         """Tou File Particle ID"""
