@@ -1,3 +1,6 @@
-./vscode
+.vscode
+.cache
+__pycache__
 sample_big.TOU
 *.pyc
+*.log
