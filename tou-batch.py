@@ -141,12 +141,15 @@ def max_ang_with_z_per_file(trajs):
 
 def process_files(fnames):
     res_df = pd.DataFrame()
+    max_param = 0
     for i, fn in enumerate(fnames):
         row = {}
         row[DF_FNAME] = fn
         logger.info("Processing file %s/%s --- %s...", str(i+1), str(len(fnames)), fn)
 
         param = parse_filename(fn)
+        if len(param)>max_param:
+            max_param = len(param)
         row.update(param)
 
         trajs = import_tou.particles_from_tou(os.path.join(FPATH, fn), zmin=ZMIN, zmax=ZMAX)
@@ -158,6 +161,10 @@ def process_files(fnames):
         logger.info("%s --- max angle with z: %s", fn, str(max_ang_z))
 
         res_df = res_df.append(row, ignore_index=True)
+    avail_params = ["p"+str(i) for i in range(max_param)]
+    other_cols = [DF_FNAME, DF_NTR, DF_MAX_ANG_Z]
+    res_df = res_df[avail_params + other_cols]
+    res_df = res_df.sort_values(avail_params)
     return res_df
 
 def main():
@@ -178,24 +185,34 @@ def main():
     ### get list of relevant files
     fnames = get_files()
 
+    ### run computations
     res_df = process_files(fnames)
 
+    ### Define Pivot Saving tasks
+    PIV_TASK_LIST = [{"name":DF_MAX_ANG_Z, "index":"p0", "columns":"p1", "values":DF_MAX_ANG_Z}]
+
     # archive results and inputs
-    outname = FPREFIX_RC + TIMESTAMP
-    RESDIRPATH = os.path.join(FPATH, outname)
+    SAVENAME = FPREFIX_RC + TIMESTAMP
+    RESDIRPATH = os.path.join(FPATH, SAVENAME)
     os.mkdir(RESDIRPATH)
     logger.info("Created output directory at %s", RESDIRPATH)
+    
+    for task in PIV_TASK_LIST:
+        piv = res_df.pivot(index=task["index"], columns=task["columns"], values=task["values"])
+        piv_path = os.path.join(RESDIRPATH, SAVENAME + "_" + task["name"] + ".csv")
+        piv.to_csv(piv_path)
+        logger.info("Saved pivot table %s to %s", str(task), piv_path)
 
-    CFG_BCKP_PATH = os.path.join(RESDIRPATH, outname + ".cfg")
+    CFG_BCKP_PATH = os.path.join(RESDIRPATH, SAVENAME + ".cfg")
     shutil.copy2(CFG_FNAME, CFG_BCKP_PATH)
-    logger.info("Saved copy of config file at %s", CFG_BCKP_PATH)
+    logger.info("Saved config file at %s", CFG_BCKP_PATH)
 
-    RESDFFPATH = os.path.join(RESDIRPATH, outname + "_results.csv")
-    res_df.to_csv(RESDFFPATH)
-    logger.info("Saved bulk results file to %s", RESDFFPATH)
+    RESDFFPATH = os.path.join(RESDIRPATH, SAVENAME + "_resultdump.csv")
+    res_df.to_csv(RESDFFPATH, index=False)
+    logger.info("Saved result table dump to %s", RESDFFPATH)
 
     # shutdown
-    LOGPATH = os.path.join(RESDIRPATH, outname + ".log")
+    LOGPATH = os.path.join(RESDIRPATH, SAVENAME + ".log")
     logger.info("Unlinking log file. Will be moved to %s", LOGPATH)
     logger_file_handler.close()
     shutil.move(LOGFNAME, LOGPATH)
