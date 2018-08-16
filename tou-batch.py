@@ -1,17 +1,28 @@
 import os
+import math
+import logging
+import time
 
-# Input Params
-FPATH = os.path.abspath("C:/SAMPLEDATAFROMSASHA")
-FPREFIX_RC = "NA53FC1F_" # real case file prefix
-FPREFIX = FPREFIX_RC.lower() # lower case file prefix
-ZMIN = 0.0
-ZMAX = 1.0
+import pandas as pd
 
-# Constants
+import import_tou
+
+# Constants and setup
+TIMESTAMP = time.strftime("%Y%m%d%H%M%S")
+LOGFNAME = "tou_batch_" + TIMESTAMP + ".log"
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger_file_handler = logging.FileHandler(LOGFNAME)
+logger_stream_handler = logging.StreamHandler()
+logger.addHandler(logger_file_handler)
+logger.addHandler(logger_stream_handler)
+# logger.info("Logger started.")
+
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz"
 FPOSTFIX = ".tou"
 
-CFG_FNAME = "./tou-angles-batch.cfg"
+CFG_FNAME = "./tou-batch.cfg"
 CFG_COMMENT_CHAR = "#"
 CFG_ASSIGN_CHAR = "="
 CFGSTR_FPATH = "path"
@@ -24,7 +35,12 @@ CFG_HEADER = [CFG_COMMENT_CHAR + " Config File for TOU-ANGLES-BATCH\n",
               CFG_COMMENT_CHAR + " One assignment (" + CFG_ASSIGN_CHAR + ") per line\n",
               CFG_COMMENT_CHAR + " Empty and undefined vars will be assigned defaults if possible\n"]
 
+DF_FNAME = "fname"
+DF_NTR = "ntr"
+DF_MAX_ANG_Z = "max_ang_z"
+
 def parse_filename(fname):
+    fname_bckp = fname
     # Strip prefix and postfix
     fname = fname.replace(FPREFIX, "")
     fname = fname.replace(FPOSTFIX, "")
@@ -33,9 +49,10 @@ def parse_filename(fname):
         fname = fname.replace(c, "")
     # Assemble values and return as list
     values = fname.split("_")
-    param = []
+    param = {}
     for i in range(len(values)//2):
-        param.append(float(values[2*i] + "." + values[2*i+1]))
+        param["p"+str(i)] = float(values[2*i] + "." + values[2*i+1])
+    logger.info("%s --- extracted params: %s", fname_bckp, str(param))
     return param
 
 def parse_cfgfile():
@@ -52,14 +69,12 @@ def parse_cfgfile():
                     val = val.strip()
                     cfg[key] = val
                 except Exception as e:
-                    print("Encountered error while parsing line: ")
-                    print(ln)
+                    logger.exception("Error while parsing line: %s", ln)
                     raise e
             else:
-                raise ValueError("Unknown config parameter in line: " + ln)
-    print("Read the following config from file:")
-    for key, val in cfg.items():
-        print(key, "=" ,val)
+                logger.error("Unknown config parameter in line: %s", ln)
+                raise ValueError()
+    logger.info("Read config from file: %s", str(cfg))
     return cfg
 
 def create_cfgfile():
@@ -76,7 +91,7 @@ def get_files():
     files = os.listdir(FPATH)
     files = [f.lower() for f in files]
     files = [f for f in files if (FPOSTFIX in f and FPREFIX in f)]
-    print("Found " + str(len(files)) + " TOU files with matching prefix.")
+    logger.info("Found " + str(len(files)) + " TOU files with matching prefix.")
     return files
 
 def set_global_params(cfg):
@@ -97,7 +112,7 @@ def set_global_params(cfg):
         try:
             ZMIN = float(ZMIN)
         except Exception as e:
-            print("Error while trying to cast zmin='" + ZMIN + "' to float.")
+            logger.exception("Error while trying to cast zmin='" + ZMIN + "' to float.")
             raise e
     ZMAX = cfg.get(CFGSTR_ZMAX, "")
     if ZMAX == "":
@@ -106,14 +121,44 @@ def set_global_params(cfg):
         try:
             ZMAX = float(ZMAX)
         except Exception as e:
-            print("Error while trying to cast zmax='" + ZMAX + "' to float.")
-        raise e
-    print("Set FPATH to ", FPATH)
-    print("Set FPREFIX_RC to ", FPREFIX_RC)
-    print("Set FPREFIX to ", FPREFIX)
-    print("Set ZMIN to ", ZMIN)
-    print("Set ZMAX to ", ZMAX)
+            logger.exception("Error while trying to cast zmax='" + ZMAX + "' to float.")
+            raise e
+    logger.info("Set FPATH to %s", FPATH)
+    logger.info("Set FPREFIX_RC to %s", FPREFIX_RC)
+    logger.info("Set FPREFIX to %s", FPREFIX)
+    logger.info("Set ZMIN to %s", str(ZMIN))
+    logger.info("Set ZMAX to %s", str(ZMAX))
 
+def max_ang_with_z_per_file(trajs):
+    max_ang = math.nan
+    for tr in trajs:
+        z, ang = tr.max_ang_with_z()
+        if ang > max_ang or math.isnan(max_ang):
+            max_ang = ang
+    return max_ang
+
+
+def process_files(fnames):
+    res_df = pd.DataFrame()
+    for i, fn in enumerate(fnames):
+        row = {}
+        row[DF_FNAME] = fn
+        logger.info("Processing file %s/%s --- %s...", str(i+1), str(len(fnames)), fn)
+
+        param = parse_filename(fn)
+        row.update(param)
+
+        trajs = import_tou.particles_from_tou(os.path.join(FPATH, fn), zmin=ZMIN, zmax=ZMAX)
+        row[DF_NTR] = len(trajs)
+        logger.info("%s --- trajectories found: %s", fn, str(len(trajs)))
+
+        max_ang_z = max_ang_with_z_per_file(trajs)
+        row[DF_MAX_ANG_Z] = max_ang_z
+        logger.info("%s --- max angle with z: %s", fn, str(max_ang_z))
+
+        res_df = res_df.append(row, ignore_index=True)
+    return res_df
+    
 def main():
     ### check if config exists
     if not os.path.exists(CFG_FNAME):
@@ -121,6 +166,8 @@ def main():
         create_cfgfile()
         print("Please adjust config file and restart.")
         input("Press enter to exit...")
+        logger_file_handler.close()
+        os.remove(LOGFNAME)
         exit()
 
     ### set up config values
@@ -130,8 +177,8 @@ def main():
     ### get list of relevant files
     fnames = get_files()
 
-    for fn in fnames:
-        pass
-    
+    process_files(fnames)
+
+
 if __name__ == "__main__":
     main()
