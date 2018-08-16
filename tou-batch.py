@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import math
 import logging
@@ -176,7 +177,7 @@ def main():
         input("Press enter to exit...")
         logger_file_handler.close()
         os.remove(LOGFNAME)
-        exit()
+        sys.exit()
 
     ### set up config values
     cfg = parse_cfgfile()
@@ -217,7 +218,7 @@ def main():
     logger_file_handler.close()
     shutil.move(LOGFNAME, LOGPATH)
     input("Press enter to exit...")
-    exit()
+    sys.exit()
 
 if __name__ == "__main__":
     main()
