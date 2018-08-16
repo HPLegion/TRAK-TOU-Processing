@@ -4,3 +4,5 @@ __pycache__
 sample_big.TOU
 *.pyc
 *.log
+build
+dist
