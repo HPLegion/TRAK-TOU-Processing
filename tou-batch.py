@@ -1,4 +1,5 @@
 import os
+import shutil
 import math
 import logging
 import time
@@ -22,7 +23,7 @@ logger.addHandler(logger_stream_handler)
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz"
 FPOSTFIX = ".tou"
 
-CFG_FNAME = "./tou-batch.cfg"
+CFG_FNAME = "tou-batch.cfg"
 CFG_COMMENT_CHAR = "#"
 CFG_ASSIGN_CHAR = "="
 CFGSTR_FPATH = "path"
@@ -158,7 +159,7 @@ def process_files(fnames):
 
         res_df = res_df.append(row, ignore_index=True)
     return res_df
-    
+
 def main():
     ### check if config exists
     if not os.path.exists(CFG_FNAME):
@@ -177,8 +178,29 @@ def main():
     ### get list of relevant files
     fnames = get_files()
 
-    process_files(fnames)
+    res_df = process_files(fnames)
 
+    # archive results and inputs
+    outname = FPREFIX_RC + TIMESTAMP
+    RESDIRPATH = os.path.join(FPATH, outname)
+    os.mkdir(RESDIRPATH)
+    logger.info("Created output directory at %s", RESDIRPATH)
+
+    CFG_BCKP_PATH = os.path.join(RESDIRPATH, outname + ".cfg")
+    shutil.copy2(CFG_FNAME, CFG_BCKP_PATH)
+    logger.info("Saved copy of config file at %s", CFG_BCKP_PATH)
+
+    RESDFFPATH = os.path.join(RESDIRPATH, outname + "_results.csv")
+    res_df.to_csv(RESDFFPATH)
+    logger.info("Saved bulk results file to %s", RESDFFPATH)
+
+    # shutdown
+    LOGPATH = os.path.join(RESDIRPATH, outname + ".log")
+    logger.info("Unlinking log file. Will be moved to %s", LOGPATH)
+    logger_file_handler.close()
+    shutil.move(LOGFNAME, LOGPATH)
+    input("Press enter to exit...")
+    exit()
 
 if __name__ == "__main__":
     main()
