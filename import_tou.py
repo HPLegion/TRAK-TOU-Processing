@@ -5,8 +5,8 @@ Contains functions to import a TREK TOU output file
 import pandas as pd
 from tou_particle import TouParticle
 
-import warnings
-warnings.warn("Uncertain Units. Current units may depend on the problem symmetry. Role of DUnit unclear.")
+# import warnings
+# warnings.warn("Uncertain Units. Current units may depend on the problem symmetry. Role of DUnit unclear.")
 
 def read_tou_blockwise(filename, zmin=None, zmax=None):
     """
@@ -21,9 +21,10 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
 
     with open(filename, mode='r') as f:
         # Skip 5 header lines
-        print("Printing Fileheader:")
+        # print("Printing Fileheader:")
         for _ in range(5):
-            print(f.readline())
+            # print(f.readline())
+            f.readline()
 
         for line in f:
             # discard separation line
