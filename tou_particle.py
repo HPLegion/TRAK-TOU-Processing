@@ -201,11 +201,22 @@ class TouParticle:
     def kin_energy_si(self):
         """Kinetic Energy in J"""
         return (self.gamma-1)*self.mass_si*C_0**2
+        # return self.v_abs**2 * self.mass_si / 2
 
     @property
     def kin_energy(self):
         """Kinetic Energy in eV"""
         return self.kin_energy_si / Q_E
+
+    @property
+    def kin_energy_long(self):
+        """Longitudinal (parallel ot z) Kinetic Energy in eV"""
+        return self.kin_energy * np.cos(self.ang_with_z_rad)**2
+
+    @property
+    def kin_energy_trans(self):
+        """Transverse (perpendicular ot z) Kinetic Energy in eV"""
+        return self.kin_energy * np.sin(self.ang_with_z_rad)**2
 
     @property
     def p_x(self):
