@@ -42,8 +42,12 @@ CFG_HEADER = [CFG_COMMENT_CHAR + " Config File for TOU-ANGLES-BATCH\n",
 DF_FNAME = "fname"
 DF_NTR = "ntr"
 DF_NTR_LOST = "ntr_lost"
-DF_MAX_ANG_Z = "max_ang_z"
-DF_COLS = [DF_FNAME, DF_NTR, DF_NTR_LOST, DF_MAX_ANG_Z]
+DF_MAX_ANG_WITH_Z = "max_ang_with_z"
+DF_MAX_ANG_WITH_Z_Z0 = "max_ang_with_z_z0"
+DF_MAX_ETRANS = "max_e_trans"
+DF_MAX_ETRANS_Z0 = "max_e_trans_z0"
+DF_COLS = [DF_FNAME, DF_NTR, DF_NTR_LOST, DF_MAX_ANG_WITH_Z_Z0, DF_MAX_ANG_WITH_Z,
+           DF_MAX_ETRANS_Z0, DF_MAX_ETRANS]
 
 def parse_filename(fname):
     fname_bckp = fname
@@ -137,11 +141,23 @@ def set_global_params(cfg):
 
 def max_ang_with_z_per_file(trajs):
     max_ang = math.nan
+    max_ang_z0 = math.nan
     for tr in trajs:
-        z, ang = tr.max_ang_with_z()
+        z0, ang = tr.max_ang_with_z()
         if ang > max_ang or math.isnan(max_ang):
             max_ang = ang
-    return max_ang
+            max_ang_z0 = z0
+    return (max_ang_z0, max_ang)
+
+def max_kin_energy_trans_per_file(trajs):
+    max_et = math.nan
+    max_et_z0 = math.nan
+    for tr in trajs:
+        z0, et = tr.max_kin_energy_trans()
+        if et > max_et or math.isnan(max_et):
+            max_et = et
+            max_et_z0 = z0
+    return (max_et_z0, max_et)
 
 
 def process_files(fnames):
@@ -163,9 +179,15 @@ def process_files(fnames):
         row[DF_NTR_LOST] = row[DF_NTR] - len(trajs)
         logger.info("%s --- valid trajectories found: %s", fn, str(len(trajs)))
 
-        max_ang_z = max_ang_with_z_per_file(trajs)
-        row[DF_MAX_ANG_Z] = max_ang_z
-        logger.info("%s --- max angle with z: %s", fn, str(max_ang_z))
+        (max_ang_z_z0, max_ang_z) = max_ang_with_z_per_file(trajs)
+        row[DF_MAX_ANG_WITH_Z_Z0] = max_ang_z_z0
+        row[DF_MAX_ANG_WITH_Z] = max_ang_z
+        logger.info("%s --- max angle with z: %s at z = %s", fn, str(max_ang_z), str(max_ang_z_z0))
+
+        (max_et_z0, max_et) = max_kin_energy_trans_per_file(trajs)
+        row[DF_MAX_ETRANS_Z0] = max_et_z0
+        row[DF_MAX_ETRANS] = max_et
+        logger.info("%s --- max Etrans : %s at z = %s", fn, str(max_et), str(max_et_z0))
 
         res_df = res_df.append(row, ignore_index=True)
     avail_params = ["p"+str(i) for i in range(max_param)]
@@ -195,7 +217,8 @@ def main():
     res_df = process_files(fnames)
 
     ### Define Pivot Saving tasks
-    PIV_TASK_LIST = [{"name":DF_MAX_ANG_Z, "index":"p0", "columns":"p1", "values":DF_MAX_ANG_Z}]
+    PIV_TASK_LIST = [{"name":DF_MAX_ANG_WITH_Z, "index":"p0", "columns":"p1", "values":DF_MAX_ANG_WITH_Z},
+                     {"name":DF_MAX_ETRANS, "index":"p0", "columns":"p1", "values":DF_MAX_ETRANS}]
 
     # archive results and inputs
     SAVENAME = FPREFIX_RC + TIMESTAMP

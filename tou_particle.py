@@ -283,3 +283,19 @@ class TouParticle:
         max_ang = np.amax(self.ang_with_z[mask])
         max_z = self.z[mask][np.argmax(self.ang_with_z[mask])]
         return (max_z, max_ang)
+
+    def max_kin_energy_trans(self, zmin=None, zmax=None):
+        """
+        finds the maximum angle with the z axis along the trajectory, the z range can be limited
+        if the max value occurs more than once the first appearance is returned
+        returns a tuple (z, angle(z)) (angle in degrees)
+        """
+        if not zmin:
+            zmin = np.amin(self.z)
+        if not zmax:
+            zmax = np.amax(self.z)
+        mask = (zmin <= self.z) & (self.z <= zmax)
+
+        max_et = np.amax(self.kin_energy_trans[mask])
+        max_z = self.z[mask][np.argmax(self.kin_energy_trans[mask])]
+        return (max_z, max_et)
