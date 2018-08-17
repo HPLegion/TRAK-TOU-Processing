@@ -10,6 +10,8 @@ import pandas as pd
 import import_tou
 
 # Constants and setup
+FPATH = FPREFIX = FPREFIX_RC = ZMIN = ZMAX = None # to be instantiated from config file
+
 TIMESTAMP = time.strftime("%Y%m%d%H%M%S")
 LOGFNAME = "tou_batch_" + TIMESTAMP + ".log"
 
@@ -39,7 +41,9 @@ CFG_HEADER = [CFG_COMMENT_CHAR + " Config File for TOU-ANGLES-BATCH\n",
 
 DF_FNAME = "fname"
 DF_NTR = "ntr"
+DF_NTR_LOST = "ntr_lost"
 DF_MAX_ANG_Z = "max_ang_z"
+DF_COLS = [DF_FNAME, DF_NTR, DF_NTR_LOST, DF_MAX_ANG_Z]
 
 def parse_filename(fname):
     fname_bckp = fname
@@ -149,13 +153,15 @@ def process_files(fnames):
         logger.info("Processing file %s/%s --- %s...", str(i+1), str(len(fnames)), fn)
 
         param = parse_filename(fn)
-        if len(param)>max_param:
+        if len(param) > max_param:
             max_param = len(param)
         row.update(param)
 
         trajs = import_tou.particles_from_tou(os.path.join(FPATH, fn), zmin=ZMIN, zmax=ZMAX)
         row[DF_NTR] = len(trajs)
-        logger.info("%s --- trajectories found: %s", fn, str(len(trajs)))
+        trajs = [tr for tr in trajs if tr.has_data]
+        row[DF_NTR_LOST] = row[DF_NTR] - len(trajs)
+        logger.info("%s --- valid trajectories found: %s", fn, str(len(trajs)))
 
         max_ang_z = max_ang_with_z_per_file(trajs)
         row[DF_MAX_ANG_Z] = max_ang_z
@@ -163,8 +169,7 @@ def process_files(fnames):
 
         res_df = res_df.append(row, ignore_index=True)
     avail_params = ["p"+str(i) for i in range(max_param)]
-    other_cols = [DF_FNAME, DF_NTR, DF_MAX_ANG_Z]
-    res_df = res_df[avail_params + other_cols]
+    res_df = res_df[avail_params + DF_COLS]
     res_df = res_df.sort_values(avail_params)
     return res_df
 
