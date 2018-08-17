@@ -64,8 +64,8 @@ class TouParticle:
 
     @property
     def has_data(self):
-        """returns True if trajectory frame is not empty, False otherwise"""
-        return not self.tou_data.empty
+        """returns True if trajectory frame has at least two lines, False otherwise"""
+        return self._tou_data.shape[0] > 2
 
     @property
     def pid(self):
