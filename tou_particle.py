@@ -268,34 +268,51 @@ class TouParticle:
         """The angle between the particles velocity vector and the z axis (degree)"""
         return np.rad2deg(self.ang_with_z_rad)
 
+    def _range_mask(self, zmin=None, zmax=None):
+        """
+        returns a numpy mask for a given range, replacing with limits of available data if None
+        """
+        if not zmin:
+            zmin = np.amin(self.z)
+        if not zmax:
+            zmax = np.amax(self.z)
+        return (zmin <= self.z) & (self.z <= zmax)
+
     def max_ang_with_z(self, zmin=None, zmax=None):
         """
         finds the maximum angle with the z axis along the trajectory, the z range can be limited
         if the max value occurs more than once the first appearance is returned
         returns a tuple (z, angle(z)) (angle in degrees)
         """
-        if not zmin:
-            zmin = np.amin(self.z)
-        if not zmax:
-            zmax = np.amax(self.z)
-        mask = (zmin <= self.z) & (self.z <= zmax)
-
-        max_ang = np.amax(self.ang_with_z[mask])
-        max_z = self.z[mask][np.argmax(self.ang_with_z[mask])]
-        return (max_z, max_ang)
+        mask = self._range_mask(zmin=zmin, zmax=zmax)
+        arg = np.argmax(self.ang_with_z[mask])
+        return (self.z[mask][arg], self.ang_with_z[mask][arg])
 
     def max_kin_energy_trans(self, zmin=None, zmax=None):
         """
-        finds the maximum angle with the z axis along the trajectory, the z range can be limited
+        finds the maximum transverse e_kin along the trajectory, the z range can be limited
         if the max value occurs more than once the first appearance is returned
-        returns a tuple (z, angle(z)) (angle in degrees)
+        returns a tuple (z, angle(z)) (e_kin in eV)
         """
-        if not zmin:
-            zmin = np.amin(self.z)
-        if not zmax:
-            zmax = np.amax(self.z)
-        mask = (zmin <= self.z) & (self.z <= zmax)
+        mask = self._range_mask(zmin=zmin, zmax=zmax)
+        arg = np.argmax(self.kin_energy_trans[mask])
+        return (self.z[mask][arg], self.kin_energy_trans[mask][arg])
 
-        max_et = np.amax(self.kin_energy_trans[mask])
-        max_z = self.z[mask][np.argmax(self.kin_energy_trans[mask])]
-        return (max_z, max_et)
+    def mean_ang_with_z(self, zmin=None, zmax=None):
+        """
+        finds the mean angle with the z axis along the trajectory, the z range can be limited
+        if the max value occurs more than once the first appearance is returned
+        returns a tuple (mean_z_in_range, mean_angle_in_range) (angle in degrees)
+        """
+        mask = self._range_mask(zmin=zmin, zmax=zmax)
+        return (self.z[mask].mean(), self.ang_with_z[mask].mean())
+
+    def mean_kin_energy_trans(self, zmin=None, zmax=None):
+        """
+        finds the mean transverse e_kin along the trajectory, the z range can be limited
+        if the max value occurs more than once the first appearance is returned
+        returns a tuple (mean_z_in_range, mean_trans_ekin_in_range) (e_kin in eV)
+        """
+        mask = self._range_mask(zmin=zmin, zmax=zmax)
+        return (self.z[mask].mean(), self.kin_energy_trans[mask].mean())
+        
