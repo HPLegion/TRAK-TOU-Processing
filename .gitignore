@@ -6,3 +6,4 @@ sample_big.TOU
 *.log
 build
 dist
+.pytest_cache
