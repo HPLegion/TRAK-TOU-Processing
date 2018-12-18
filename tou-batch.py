@@ -12,7 +12,7 @@ import import_tou
 # Constants and setup
 FPATH = FPREFIX = FPREFIX_RC = ZMIN = ZMAX = None # to be instantiated from config file
 
-TIMESTAMP = time.strftime("%Y%m%d%H%M%S")
+TIMESTAMP = time.strftime("%Y-%m-%d-%H-%M-%S")
 LOGFNAME = "tou_batch_" + TIMESTAMP + ".log"
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,6 @@ logger_file_handler = logging.FileHandler(LOGFNAME)
 logger_stream_handler = logging.StreamHandler()
 logger.addHandler(logger_file_handler)
 logger.addHandler(logger_stream_handler)
-# logger.info("Logger started.")
 
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz"
 FPOSTFIX = ".tou"
@@ -42,12 +41,17 @@ CFG_HEADER = [CFG_COMMENT_CHAR + " Config File for TOU-ANGLES-BATCH\n",
 DF_FNAME = "fname"
 DF_NTR = "ntr"
 DF_NTR_LOST = "ntr_lost"
-DF_MAX_ANG_WITH_Z = "max_ang_with_z"
-DF_MAX_ANG_WITH_Z_Z0 = "max_ang_with_z_z0"
-DF_MAX_ETRANS = "max_e_trans"
-DF_MAX_ETRANS_Z0 = "max_e_trans_z0"
-DF_COLS = [DF_FNAME, DF_NTR, DF_NTR_LOST, DF_MAX_ANG_WITH_Z_Z0, DF_MAX_ANG_WITH_Z,
-           DF_MAX_ETRANS_Z0, DF_MAX_ETRANS]
+# the following lists contains the names of the methods of the trajectory objects that we want to
+# evaluate and find the maximum of within each file
+MAX_TASK_LIST = ["max_ang_with_z",
+                 "max_kin_energy_trans",
+                 "mean_ang_with_z",
+                 "mean_kin_energy_trans"]
+DF_COLS = [DF_FNAME, DF_NTR, DF_NTR_LOST]
+for taskname in MAX_TASK_LIST:
+    DF_COLS.append("max_" + taskname + "_z0")
+    DF_COLS.append("max_" + taskname)
+
 
 def parse_filename(fname):
     fname_bckp = fname
@@ -101,7 +105,7 @@ def get_files():
     files = os.listdir(FPATH)
     files = [f.lower() for f in files]
     files = [f for f in files if (FPOSTFIX in f and FPREFIX in f)]
-    logger.info("Found " + str(len(files)) + " TOU files with matching prefix.")
+    logger.info("Found %d TOU files with matching prefix.", len(files))
     return files
 
 def set_global_params(cfg):
@@ -122,7 +126,7 @@ def set_global_params(cfg):
         try:
             ZMIN = float(ZMIN)
         except Exception as e:
-            logger.exception("Error while trying to cast zmin='" + ZMIN + "' to float.")
+            logger.exception("Error while trying to cast zmin='%s' to float.", ZMIN)
             raise e
     ZMAX = cfg.get(CFGSTR_ZMAX, "")
     if ZMAX == "":
@@ -131,7 +135,7 @@ def set_global_params(cfg):
         try:
             ZMAX = float(ZMAX)
         except Exception as e:
-            logger.exception("Error while trying to cast zmax='" + ZMAX + "' to float.")
+            logger.exception("Error while trying to cast zmax='%s' to float.", ZMAX)
             raise e
     logger.info("Set FPATH to %s", FPATH)
     logger.info("Set FPREFIX_RC to %s", FPREFIX_RC)
@@ -139,34 +143,13 @@ def set_global_params(cfg):
     logger.info("Set ZMIN to %s", str(ZMIN))
     logger.info("Set ZMAX to %s", str(ZMAX))
 
-def max_ang_with_z_per_file(trajs):
-    max_ang = math.nan
-    max_ang_z0 = math.nan
-    for tr in trajs:
-        z0, ang = tr.max_ang_with_z()
-        if ang > max_ang or math.isnan(max_ang):
-            max_ang = ang
-            max_ang_z0 = z0
-    return (max_ang_z0, max_ang)
-
-def max_kin_energy_trans_per_file(trajs):
-    max_et = math.nan
-    max_et_z0 = math.nan
-    for tr in trajs:
-        z0, et = tr.max_kin_energy_trans()
-        if et > max_et or math.isnan(max_et):
-            max_et = et
-            max_et_z0 = z0
-    return (max_et_z0, max_et)
-
-
 def process_files(fnames):
     res_df = pd.DataFrame()
     max_param = 0
     for i, fn in enumerate(fnames):
         row = {}
         row[DF_FNAME] = fn
-        logger.info("Processing file %s/%s --- %s...", str(i+1), str(len(fnames)), fn)
+        logger.info("Processing file %d / %d --- %s...", i+1, len(fnames), fn)
 
         param = parse_filename(fn)
         if len(param) > max_param:
@@ -177,19 +160,18 @@ def process_files(fnames):
         row[DF_NTR] = len(trajs)
         trajs = [tr for tr in trajs if tr.has_data]
         row[DF_NTR_LOST] = row[DF_NTR] - len(trajs)
-        logger.info("%s --- valid trajectories found: %s", fn, str(len(trajs)))
-
-        (max_ang_z_z0, max_ang_z) = max_ang_with_z_per_file(trajs)
-        row[DF_MAX_ANG_WITH_Z_Z0] = max_ang_z_z0
-        row[DF_MAX_ANG_WITH_Z] = max_ang_z
-        logger.info("%s --- max angle with z: %s at z = %s", fn, str(max_ang_z), str(max_ang_z_z0))
-
-        (max_et_z0, max_et) = max_kin_energy_trans_per_file(trajs)
-        row[DF_MAX_ETRANS_Z0] = max_et_z0
-        row[DF_MAX_ETRANS] = max_et
-        logger.info("%s --- max Etrans : %s at z = %s", fn, str(max_et), str(max_et_z0))
+        logger.info("%s --- valid trajectories found: %d", fn, len(trajs))
+      
+        for taskname in MAX_TASK_LIST:
+            # the following expression evaluates the task for all trajectories and extracts the 
+            # largest values and the corresponding value of z
+            z0, res = max([getattr(tr, taskname)() for tr in trajs], key=lambda x: x[1])
+            row["max_" + taskname + "_z0"] = z0
+            row["max_" + taskname] = res
+            logger.info("%s --- max_%s: %.3e at z = %.3e", fn, "{:<25}".format(taskname), res, z0)
 
         res_df = res_df.append(row, ignore_index=True)
+
     avail_params = ["p"+str(i) for i in range(max_param)]
     res_df = res_df[avail_params + DF_COLS]
     res_df = res_df.sort_values(avail_params)
@@ -216,31 +198,38 @@ def main():
     ### run computations
     res_df = process_files(fnames)
 
-    ### Define Pivot Saving tasks
-    PIV_TASK_LIST = [{"name":DF_MAX_ANG_WITH_Z, "index":"p0", "columns":"p1", "values":DF_MAX_ANG_WITH_Z},
-                     {"name":DF_MAX_ETRANS, "index":"p0", "columns":"p1", "values":DF_MAX_ETRANS}]
-
     # archive results and inputs
+    logger.info("----------------------------------------------------")
+    logger.info("Finished analysis, starting to save results")
     SAVENAME = FPREFIX_RC + TIMESTAMP
     RESDIRPATH = os.path.join(FPATH, SAVENAME)
     os.mkdir(RESDIRPATH)
     logger.info("Created output directory at %s", RESDIRPATH)
-    
-    for task in PIV_TASK_LIST:
-        piv = res_df.pivot(index=task["index"], columns=task["columns"], values=task["values"])
-        piv_path = os.path.join(RESDIRPATH, SAVENAME + "_" + task["name"] + ".csv")
-        piv.to_csv(piv_path)
-        logger.info("Saved pivot table %s to %s", str(task), piv_path)
 
-    CFG_BCKP_PATH = os.path.join(RESDIRPATH, SAVENAME + ".cfg")
-    shutil.copy2(CFG_FNAME, CFG_BCKP_PATH)
-    logger.info("Saved config file at %s", CFG_BCKP_PATH)
-
+    # dump linear result table
     RESDFFPATH = os.path.join(RESDIRPATH, SAVENAME + "_resultdump.csv")
     res_df.to_csv(RESDFFPATH, index=False)
     logger.info("Saved result table dump to %s", RESDFFPATH)
 
-    # shutdown
+    piv_task_list = []
+    for taskname in MAX_TASK_LIST:
+        # create a default pivot task for each max_task that has been evaluated
+        piv_task_list.append({"values":"max_" + taskname, "index":"p0", "columns":"p1"})
+
+    # and execute them
+    for task in piv_task_list:
+        piv = res_df.pivot(index=task["index"], columns=task["columns"], values=task["values"])
+        name = SAVENAME + "_" + task["index"]+ "_" + task["columns"]+ "_" + task["values"] + ".csv"
+        piv_path = os.path.join(RESDIRPATH, name)
+        piv.to_csv(piv_path)
+        logger.info("Saved pivot table %s to %s", str(task), piv_path)
+
+    # backup config file
+    CFG_BCKP_PATH = os.path.join(RESDIRPATH, SAVENAME + ".cfg")
+    shutil.copy2(CFG_FNAME, CFG_BCKP_PATH)
+    logger.info("Saved config file at %s", CFG_BCKP_PATH)
+
+    # close and move logfile and shutdown
     LOGPATH = os.path.join(RESDIRPATH, SAVENAME + ".log")
     logger.info("Unlinking log file. Will be moved to %s", LOGPATH)
     logger_file_handler.close()
