@@ -14,6 +14,7 @@ FPATH = FPREFIX = FPREFIX_RC = ZMIN = ZMAX = None # to be instantiated from conf
 
 TIMESTAMP = time.strftime("%Y-%m-%d-%H-%M-%S")
 LOGFNAME = "tou_batch_" + TIMESTAMP + ".log"
+VERSION = "2018-12-19 14:50"
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -161,9 +162,9 @@ def process_files(fnames):
         trajs = [tr for tr in trajs if tr.has_data]
         row[DF_NTR_LOST] = row[DF_NTR] - len(trajs)
         logger.info("%s --- valid trajectories found: %d", fn, len(trajs))
-      
+
         for taskname in MAX_TASK_LIST:
-            # the following expression evaluates the task for all trajectories and extracts the 
+            # the following expression evaluates the task for all trajectories and extracts the
             # largest values and the corresponding value of z
             z0, res = max([getattr(tr, taskname)() for tr in trajs], key=lambda x: x[1])
             row["max_" + taskname + "_z0"] = z0
@@ -178,6 +179,7 @@ def process_files(fnames):
     return res_df
 
 def main():
+    logger.info("This is the %s version of this script", VERSION)
     ### check if config exists
     if not os.path.exists(CFG_FNAME):
         print("Could not find config file. Attempting to create one...")
