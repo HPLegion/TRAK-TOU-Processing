@@ -4,7 +4,7 @@ Contains functions to import a TREK TOU output file
 
 import pandas as pd
 from tou_particle import TouParticle
-import multiprocessing as mp
+import io
 # import warnings
 # warnings.warn("Uncertain Units. Current units may depend on the problem symmetry. Role of DUnit unclear.")
 
@@ -89,9 +89,11 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
 #                 if block:
 #                     trajectories.append(block)
 #                 constants.append(next(f)) # Read next set of constants
-#                 block = []
+#                 # block = []
+#                 block = io.StringIO()
 #             else:
-#                 block.append([line[1:14], line[15:28], line[29:42], line[43:56]])
+#                 # block.append([line[1:14], line[15:28], line[29:42], line[43:56]])
+#                 block.write(line)
 #     trajectories.append(block)
 
 #     constants = list(map(_parse_trajectory_info, constants))
@@ -99,7 +101,10 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
 #     return (trajectories, constants)
 
 # def _block_to_df(block, zmin, zmax):
-#     df = pd.DataFrame(block, columns=TOU_COLNAMES, dtype="float")
+#     block.seek(0)
+#     # df = pd.DataFrame(block, columns=TOU_COLNAMES, dtype="float")
+#     df = pd.read_csv(block, names=TOU_COLNAMES, sep="\s+")
+#     block.close()
 #     df = df[:-1] # drop last row (t=-1 repetition)
 #     if zmin:
 #         df = df[df["z"] >= zmin]
