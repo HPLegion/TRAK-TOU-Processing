@@ -103,7 +103,7 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
 # def _block_to_df(block, zmin, zmax):
 #     block.seek(0)
 #     # df = pd.DataFrame(block, columns=TOU_COLNAMES, dtype="float")
-#     df = pd.read_csv(block, names=TOU_COLNAMES, sep="\s+")
+#     df = pd.read_csv(block, names=TOU_COLNAMES, sep="\s+", dtype="float")
 #     block.close()
 #     df = df[:-1] # drop last row (t=-1 repetition)
 #     if zmin:
