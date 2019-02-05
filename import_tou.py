@@ -4,9 +4,12 @@ Contains functions to import a TREK TOU output file
 
 import pandas as pd
 from tou_particle import TouParticle
-
+import multiprocessing as mp
 # import warnings
 # warnings.warn("Uncertain Units. Current units may depend on the problem symmetry. Role of DUnit unclear.")
+
+TOU_COLWIDTHS = [14, 14, 14, 14] # bytes per data column
+TOU_COLNAMES = ["t", "x", "y", "z"]
 
 def read_tou_blockwise(filename, zmin=None, zmax=None):
     """
@@ -29,27 +32,10 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
         for line in f:
             # discard separation line
             if "---" in line:
-                pass
+                continue
             # if new particle read scalar information
             elif "Particle" in line:
-                line_data = line.split()
-                particle_id = int(line_data[1])
-                if "Current:" in line_data:
-                    ind = line_data.index("Current:")
-                    current = float(line_data[ind + 1])
-                else:
-                    current = float("nan")
-                if "Mass:" in line_data:
-                    ind = line_data.index("Mass:")
-                    mass = float(line_data[ind + 1]) # in proton masses or amu ?
-                else:
-                    mass = float("nan")
-                if "Charge:" in line_data:
-                    ind = line_data.index("Charge:")
-                    charge = float(line_data[ind + 1])
-                else:
-                    charge = float("nan")
-                constants = {"id":particle_id, "mass":mass, "charge":charge, "current":current}
+                constants = _parse_trajectory_info(line)
             # if trajectory point append to trajectory block
             else:
                 line_data = line.split()
@@ -69,10 +55,80 @@ def read_tou_blockwise(filename, zmin=None, zmax=None):
                     #if trajectory == []:
                      #   trajectory = [[-1,-1,-1,-1]]
                     #df_constants = pd.DataFrame(constants,[0])
-                    df_trajectory = pd.DataFrame(trajectory, columns=["t", "x", "y", "z"])
+                    df_trajectory = pd.DataFrame(trajectory, columns=TOU_COLNAMES)
                     #yield (df_trajectory, df_constants)
                     yield (df_trajectory, constants)
                     trajectory = list()
+
+# def read_tou2(filename, zmin=None, zmax=None):
+#     """
+#     Reads a TREK TOU Trajectory Output File
+#     If zmin and / or zmax are set, they limit the imported trajectory range by z value
+#     Returns a tuple consisting of two lists which each containing
+#     --- a pandas dataframe with trajectory data [t, x, y, z]
+#     --- a dictionary with scalar particle properties [id, mass, charge]
+#     for each particle in the input file
+#     """
+#     trajectories = []
+#     constants = []
+
+#     with open(filename, mode='r') as f:
+
+#         # Skip header lines WITHOUT first "----" seperator line
+#         while True:
+#             pos = f.tell()
+#             line = f.readline()
+#             if "---" in line:
+#                 f.seek(pos)
+#                 break
+
+#         block = None
+#         for line in f:
+#             # discard separation line
+#             if "---" in line:
+#                 if block:
+#                     trajectories.append(block)
+#                 constants.append(next(f)) # Read next set of constants
+#                 block = []
+#             else:
+#                 block.append([line[1:14], line[15:28], line[29:42], line[43:56]])
+#     trajectories.append(block)
+
+#     constants = list(map(_parse_trajectory_info, constants))
+#     trajectories = [_block_to_df(df, zmin, zmax) for df in trajectories]
+#     return (trajectories, constants)
+
+# def _block_to_df(block, zmin, zmax):
+#     df = pd.DataFrame(block, columns=TOU_COLNAMES, dtype="float")
+#     df = df[:-1] # drop last row (t=-1 repetition)
+#     if zmin:
+#         df = df[df["z"] >= zmin]
+#     if zmax:
+#         df = df[df["z"] <= zmax]
+#     return df
+
+def _parse_trajectory_info(line):
+    """
+    reads the info from a trajectory header line
+    """
+    line_data = line.split()
+    particle_id = int(line_data[1])
+    if "Current:" in line_data:
+        ind = line_data.index("Current:")
+        current = float(line_data[ind + 1])
+    else:
+        current = float("nan")
+    if "Mass:" in line_data:
+        ind = line_data.index("Mass:")
+        mass = float(line_data[ind + 1]) # in proton masses or amu ?
+    else:
+        mass = float("nan")
+    if "Charge:" in line_data:
+        ind = line_data.index("Charge:")
+        charge = float(line_data[ind + 1])
+    else:
+        charge = float("nan")
+    return {"id":particle_id, "mass":mass, "charge":charge, "current":current}
 
 def read_tou(filename, zmin=None, zmax=None):
     """
