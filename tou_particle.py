@@ -6,6 +6,7 @@ import numpy as np
 from scipy.constants import (speed_of_light as C_0,
                              atomic_mass as AMU,
                              elementary_charge as Q_E)
+import matplotlib.pyplot as plt
 
 class TouParticle:
     """
@@ -128,6 +129,20 @@ class TouParticle:
             return self.tou_data['z'].values.copy()
         else:
             return self.tou_data['z'].values
+
+    @property
+    def r(self):
+        """
+        numpy array of the radius coordinate (cylinder coordinates) r = sqrt(x**2 + y**2) (in m)
+        """
+        return np.sqrt(self.x**2 + self.y**2)
+
+    @property
+    def phi(self):
+        """
+        numpy array of phi corrdinate (cylinder coordinates) phi = atan2(y, x) (in deg)
+        """
+        return np.rad2deg(np.arctan2(self.y, self.x))
 
     @property
     def v_x(self):
@@ -315,4 +330,40 @@ class TouParticle:
         """
         mask = self._range_mask(zmin=zmin, zmax=zmax)
         return (self.z[mask].mean(), self.kin_energy_trans[mask].mean())
-        
+
+
+
+class TouBeam:
+    """
+    A class holding a number of trajectories forming a beam
+    Provides convenience functions and properties
+    """
+    def __init__(self, particles):
+        """
+        Init method
+
+        particles is a list of TouParticle objects
+        """
+        self._particles = particles
+
+    @property
+    def current(self):
+        """Total beam current"""
+        return sum(p.current for p in self._particles)
+
+    @property
+    def ntr(self):
+        """Number of trajectories"""
+        return len(self._particles)
+
+    def plot_trajectories(self, x="z", y="r", fig=None, nskip=1):
+        if not fig:
+            fig = plt.figure()
+        ax = fig.gca()
+
+        for p in self._particles[::nskip]:
+            ax.plot(getattr(p, x), getattr(p, y))
+        ax.set_xlabel(x)
+        ax.set_ylabel(y)
+        return fig
+

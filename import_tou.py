@@ -3,7 +3,7 @@ Contains functions to import a TREK TOU output file
 """
 
 import pandas as pd
-from tou_particle import TouParticle
+from tou_particle import TouParticle, TouBeam
 import io
 # import warnings
 # warnings.warn("Uncertain Units. Current units may depend on the problem symmetry. Role of DUnit unclear.")
@@ -159,3 +159,11 @@ def particles_from_tou(filename, zmin=None, zmax=None):
     """
     trajectories, constants = read_tou(filename, zmin, zmax)
     return [TouParticle(trajectories[k], constants[k]) for k in range(len(trajectories))]
+
+def beam_from_tou(filename, zmin=None, zmax=None):
+    """
+    Reads a TOU file and returns a TouBeam holding the
+    relevant information in easily accesible form
+    If zmin and / or zmax are set, they limit the imported trajectory range by z value
+    """
+    return TouBeam(particles_from_tou(filename, zmin=zmin, zmax=zmax))
