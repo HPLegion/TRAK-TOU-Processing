@@ -5,8 +5,10 @@ Contains the class TouParticle
 import numpy as np
 from scipy.constants import (speed_of_light as C_0,
                              atomic_mass as AMU,
-                             elementary_charge as Q_E)
+                             elementary_charge as Q_E,
+                             pi as PI)
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 
 class TouParticle:
     """
@@ -332,7 +334,6 @@ class TouParticle:
         return (self.z[mask].mean(), self.kin_energy_trans[mask].mean())
 
 
-
 class TouBeam:
     """
     A class holding a number of trajectories forming a beam
@@ -367,3 +368,36 @@ class TouBeam:
         ax.set_ylabel(y)
         return fig
 
+    def mean_radius(self, zmin=None, zmax=None):
+        # Take z positions of first particle as sample points
+        zref = np.sort(self._particles[0].z)
+        if not (zmin or zmax):
+            zmin = np.min(zref)
+        zref = np.clip(zref, a_min=zmin, a_max=zmax)
+        nz = len(zref)
+        currents = np.array([p.current for p in self._particles])
+        # Interpolate the radii at each zref
+        rs = []
+        for p in self._particles:
+            rs.append(np.interp(zref, p.z, p.r))
+        rs = np.stack(rs)
+        rs = np.split(rs.T, nz)
+
+        rmean = []
+        weights = currents/self.current
+        for r in rs:
+            dr = np.mean(np.abs(np.diff(r))) # Approximation of particle distance/annulus thickness
+            rmean.append(np.sqrt(np.sum(weights * 2 * r * dr)))
+        rmean = np.array(rmean)
+        return (zref, rmean)
+
+    def plot_mean_radius(self, zmin=None, zmax=None):
+        z, r = self.mean_radius(zmin=zmin, zmax=zmax)
+
+        fig = plt.figure()
+        ax = fig.gca()
+
+        ax.plot(z, r)
+        ax.set_xlabel("z")
+        ax.set_ylabel("r mean")
+        return fig
