@@ -83,7 +83,7 @@ def single_file_pipeline(job):
 
     return out
 
-if __name__ == "__main__":
+def main():
     TIMESTAMP = time.strftime("%Y-%m-%d-%H-%M-%S")
     LOGFNAME = "tou_batch_" + TIMESTAMP + ".log"
 
@@ -243,7 +243,7 @@ if __name__ == "__main__":
                 logger.info("{:<30}: {:.3e}".format(key, val))
         logger.info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  End of Result  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
-    def main():
+    def main_routine():
         """The main routine, orchestrating the rest"""
         logger.info("This is the %s version of this script", __version__)
         ### check if config exists
@@ -323,4 +323,8 @@ if __name__ == "__main__":
         input("Press enter to exit...")
         sys.exit()
 
+    main_routine()
+
+if __name__ == "__main__":
     main()
+    
