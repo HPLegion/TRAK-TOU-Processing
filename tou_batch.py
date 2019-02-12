@@ -16,12 +16,15 @@ from collections import OrderedDict
 import pandas as pd
 
 import import_tou
+from tou_particle import TouBeam
 
 ### Constants
 # Names of dataframe columns
 DF_FNAME = "fname"
 DF_NTR = "ntr"
 DF_NTR_LOST = "ntr_lost"
+DF_BEAM_RADIUS_MEAN = "beam_radius_mean"
+DF_BEAM_RADIUS_STD = "beam_radius_std"
 # the following lists contains the names of the methods of the trajectory objects that we want to
 # evaluate and find the maximum of within each file
 MAX_TASK_LIST = ["max_ang_with_z",
@@ -32,6 +35,10 @@ DF_COLS = [DF_FNAME, DF_NTR, DF_NTR_LOST]
 for taskname in MAX_TASK_LIST:
     DF_COLS.append("max_" + taskname + "_z0")
     DF_COLS.append("max_" + taskname)
+DF_COLS.append(DF_BEAM_RADIUS_MEAN + "_z0")
+DF_COLS.append(DF_BEAM_RADIUS_MEAN)
+DF_COLS.append(DF_BEAM_RADIUS_STD + "_z0")
+DF_COLS.append(DF_BEAM_RADIUS_STD)
 
 
 
@@ -81,9 +88,17 @@ def single_file_pipeline(job):
         out["max_" + tsk + "_z0"] = z0
         out["max_" + tsk] = res
 
+    beam = TouBeam(trajs)
+    zr, rm = beam.mean_radius()
+    out[DF_BEAM_RADIUS_MEAN + "_z0"] = zr.mean()
+    out[DF_BEAM_RADIUS_MEAN] = rm.mean()
+    out[DF_BEAM_RADIUS_STD + "_z0"] = zr.mean()
+    out[DF_BEAM_RADIUS_STD] = rm.std()
+
     return out
 
 def main():
+    """MAIN MONSTROSITY"""
     TIMESTAMP = time.strftime("%Y-%m-%d-%H-%M-%S")
     LOGFNAME = "tou_batch_" + TIMESTAMP + ".log"
 
@@ -95,6 +110,7 @@ def main():
     logger.addHandler(logger_stream_handler)
 
     class Progress:
+        """Simple static class for keeping track of the progress"""
         total = 0
         current = 0
 
@@ -271,9 +287,9 @@ def main():
             j = {"fpath":os.path.join(Config.FPATH, fn)}
             j.update(defargs)
             jobs.append(j)
-        
+
         Progress.total = len(jobs)
-        
+
         reslist = []
         with mp.Pool(Config.PROCESSES) as pool:
             for j in jobs:
@@ -301,6 +317,8 @@ def main():
         piv_task_list = []
         for tsk in MAX_TASK_LIST:
             piv_task_list.append({"values":"max_" + tsk, "index":"p0", "columns":"p1"})
+        piv_task_list.append({"values":DF_BEAM_RADIUS_MEAN, "index":"p0", "columns":"p1"})
+        piv_task_list.append({"values":DF_BEAM_RADIUS_STD, "index":"p0", "columns":"p1"})
 
         # and execute them
         for tsk in piv_task_list:
@@ -327,4 +345,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
