@@ -1,7 +1,13 @@
+"""
+A script that crawls through a directory full of TOU files conforming to a certain prefix
+and analyses them, there are certain requirements for the format of the file name in order for them
+to be broken into parameters correctly
+"""
+__version__ = "2018-12-19 14:50"
+
 import os
 import sys
 import shutil
-import math
 import logging
 import time
 
@@ -10,11 +16,9 @@ import pandas as pd
 import import_tou
 
 # Constants and setup
-FPATH = FPREFIX = FPREFIX_RC = ZMIN = ZMAX = None # to be instantiated from config file
 
 TIMESTAMP = time.strftime("%Y-%m-%d-%H-%M-%S")
 LOGFNAME = "tou_batch_" + TIMESTAMP + ".log"
-VERSION = "2018-12-19 14:50"
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -22,22 +26,6 @@ logger_file_handler = logging.FileHandler(LOGFNAME)
 logger_stream_handler = logging.StreamHandler()
 logger.addHandler(logger_file_handler)
 logger.addHandler(logger_stream_handler)
-
-ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz"
-FPOSTFIX = ".tou"
-
-CFG_FNAME = "tou-batch.cfg"
-CFG_COMMENT_CHAR = "#"
-CFG_ASSIGN_CHAR = "="
-CFGSTR_FPATH = "path"
-CFGSTR_FPREFIX = "prefix"
-CFGSTR_ZMIN = "zmin"
-CFGSTR_ZMAX = "zmax"
-CFGSTR = [CFGSTR_FPATH, CFGSTR_FPREFIX, CFGSTR_ZMIN, CFGSTR_ZMAX]
-CFG_HEADER = [CFG_COMMENT_CHAR + " Config File for TOU-ANGLES-BATCH\n",
-              CFG_COMMENT_CHAR + " Lines starting with " + CFG_COMMENT_CHAR + " are comments\n",
-              CFG_COMMENT_CHAR + " One assignment (" + CFG_ASSIGN_CHAR + ") per line\n",
-              CFG_COMMENT_CHAR + " Empty and undefined vars will be assigned defaults if possible\n"]
 
 DF_FNAME = "fname"
 DF_NTR = "ntr"
@@ -54,13 +42,110 @@ for taskname in MAX_TASK_LIST:
     DF_COLS.append("max_" + taskname)
 
 
+class Config:
+    """Static class that deals with everything related to the config and settings"""
+    CFGFILE = "tou-batch.cfg"
+    FPOSTFIX = ".tou" # Not dependent on cfg file
+    _comment = "#"
+    _assignment = "="
+    _field_fpath = "path"
+    _field_fprefix = "prefix"
+    _field_zmin = "zmin"
+    _field_zmax = "zmax"
+    _field_processes = "processes"
+    _fields = [_field_fpath, _field_fprefix, _field_zmin, _field_zmax, _field_processes]
+    _header = [_comment + " Config File for TOU-BATCH\n",
+               _comment + " Lines starting with " + _comment + " are comments\n",
+               _comment + " One assignment (" + _assignment + ") per line\n",
+               _comment + " Empty and undefined vars will be assigned defaults if possible\n"]
+
+    @classmethod
+    def exists(cls):
+        """Check if config file is present"""
+        return os.path.exists(cls.CFGFILE)
+
+    @classmethod
+    def create(cls):
+        """Creates a new config file"""
+        if os.path.exists(cls.CFGFILE):
+            raise FileExistsError("Cannot create cfg file; a file of the same name already exists.")
+        with open(cls.CFGFILE, "w") as f:
+            f.writelines(cls._header)
+            for cfgstr in cls._fields:
+                f.write(cfgstr + cls._assignment + "\n")
+        print("Config file created at:")
+        print(os.path.abspath(cls.CFGFILE))
+
+    @classmethod
+    def _readfile(cls):
+        """Reads a config file and returns the relevant contents as dict"""
+        cfg = {}
+        with open(cls.CFGFILE, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith(cls._comment) or line == "":
+                    continue
+                elif any(cfgstr in line for cfgstr in cls._fields):
+                    try:
+                        (key, val) = line.split(cls._assignment)
+                        key = key.strip()
+                        val = val.strip()
+                        cfg[key] = val
+                    except Exception as e:
+                        logger.exception("Error while parsing line: %s", line)
+                        raise e
+                else:
+                    logger.error("Unknown config parameter in line: %s", line)
+                    raise ValueError()
+        logger.info("Read config from file: %s", str(cfg))
+        return cfg
+
+    @classmethod
+    def initialise(cls):
+        cfg = cls._readfile()
+        # path
+        fpath = cfg.get(cls._field_fpath, "")
+        if fpath == "":
+            fpath = "./"
+        cls.FPATH = os.path.abspath(fpath)
+
+        # file prefix
+        cls.FPREFIX_RC = cfg.get(cls._field_fprefix, "")
+        cls.FPREFIX = cls.FPREFIX_RC.lower() # lower case file prefix
+
+        # zmin and max
+        zmin = cfg.get(cls._field_zmin, "")
+        if zmin == "":
+            cls.ZMIN = None
+        else:
+            try:
+                cls.ZMIN = float(zmin)
+            except Exception as e:
+                logger.exception("Error while trying to cast zmin='%s' to float.", zmin)
+                raise e
+        zmax = cfg.get(cls._field_zmax, "")
+        if zmax == "":
+            cls.ZMAX = None
+        else:
+            try:
+                cls.ZMAX = float(zmax)
+            except Exception as e:
+                logger.exception("Error while trying to cast zmax='%s' to float.", zmax)
+                raise e
+
+        logger.info("Set Config.FPATH to %s", cls.FPATH)
+        logger.info("Set Config.FPREFIX_RC to %s", cls.FPREFIX_RC)
+        logger.info("Set Config.FPREFIX to %s", cls.FPREFIX)
+        logger.info("Set Config.ZMIN to %s", str(cls.ZMIN))
+        logger.info("Set Config.ZMAX to %s", str(cls.ZMAX))
+
 def parse_filename(fname):
     fname_bckp = fname
     # Strip prefix and postfix
-    fname = fname.replace(FPREFIX, "")
-    fname = fname.replace(FPOSTFIX, "")
+    fname = fname.replace(Config.FPREFIX, "")
+    fname = fname.replace(Config.FPOSTFIX, "")
     # remove all remaining alphabetic characters
-    for c in ALPHABET:
+    for c in "ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz":
         fname = fname.replace(c, "")
     # Assemble values and return as list
     values = fname.split("_")
@@ -70,79 +155,12 @@ def parse_filename(fname):
     logger.info("%s --- extracted params: %s", fname_bckp, str(param))
     return param
 
-def parse_cfgfile():
-    cfg = {}
-    with open(CFG_FNAME, "r") as f:
-        for ln in f:
-            ln = ln.strip()
-            if ln.startswith(CFG_COMMENT_CHAR) or ln == "":
-                continue
-            elif any(cfgstr in ln for cfgstr in CFGSTR):
-                try:
-                    (key, val) = ln.split(CFG_ASSIGN_CHAR)
-                    key = key.strip()
-                    val = val.strip()
-                    cfg[key] = val
-                except Exception as e:
-                    logger.exception("Error while parsing line: %s", ln)
-                    raise e
-            else:
-                logger.error("Unknown config parameter in line: %s", ln)
-                raise ValueError()
-    logger.info("Read config from file: %s", str(cfg))
-    return cfg
-
-def create_cfgfile():
-    if os.path.exists(CFG_FNAME):
-        raise FileExistsError("Cannot create cfg file; a file of the same name already exists.")
-    with open(CFG_FNAME, "w") as f:
-        f.writelines(CFG_HEADER)
-        for cfgstr in CFGSTR:
-            f.write(cfgstr + CFG_ASSIGN_CHAR + "\n")
-    print("Config file created at:")
-    print(os.path.abspath(CFG_FNAME))
-
 def get_files():
-    files = os.listdir(FPATH)
+    files = os.listdir(Config.FPATH)
     files = [f.lower() for f in files]
-    files = [f for f in files if (FPOSTFIX in f and FPREFIX in f)]
+    files = [f for f in files if (Config.FPOSTFIX in f and Config.FPREFIX in f)]
     logger.info("Found %d TOU files with matching prefix.", len(files))
     return files
-
-def set_global_params(cfg):
-    global FPATH, FPREFIX, FPREFIX_RC, ZMIN, ZMAX
-    # path
-    FPATH = cfg.get(CFGSTR_FPATH, "")
-    if FPATH == "":
-        FPATH = "./"
-    FPATH = os.path.abspath(FPATH)
-    # file prefix
-    FPREFIX_RC = cfg.get(CFGSTR_FPREFIX, "")
-    FPREFIX = FPREFIX_RC.lower() # lower case file prefix
-    # zmin and max
-    ZMIN = cfg.get(CFGSTR_ZMIN, "")
-    if ZMIN == "":
-        ZMIN = None
-    else:
-        try:
-            ZMIN = float(ZMIN)
-        except Exception as e:
-            logger.exception("Error while trying to cast zmin='%s' to float.", ZMIN)
-            raise e
-    ZMAX = cfg.get(CFGSTR_ZMAX, "")
-    if ZMAX == "":
-        ZMAX = None
-    else:
-        try:
-            ZMAX = float(ZMAX)
-        except Exception as e:
-            logger.exception("Error while trying to cast zmax='%s' to float.", ZMAX)
-            raise e
-    logger.info("Set FPATH to %s", FPATH)
-    logger.info("Set FPREFIX_RC to %s", FPREFIX_RC)
-    logger.info("Set FPREFIX to %s", FPREFIX)
-    logger.info("Set ZMIN to %s", str(ZMIN))
-    logger.info("Set ZMAX to %s", str(ZMAX))
 
 def process_files(fnames):
     res_df = pd.DataFrame()
@@ -157,7 +175,8 @@ def process_files(fnames):
             max_param = len(param)
         row.update(param)
 
-        trajs = import_tou.particles_from_tou(os.path.join(FPATH, fn), zmin=ZMIN, zmax=ZMAX)
+        trajs = import_tou.particles_from_tou(os.path.join(Config.FPATH, fn),
+                                              zmin=Config.ZMIN, zmax=Config.ZMAX)
         row[DF_NTR] = len(trajs)
         trajs = [tr for tr in trajs if tr.has_data]
         row[DF_NTR_LOST] = row[DF_NTR] - len(trajs)
@@ -179,11 +198,11 @@ def process_files(fnames):
     return res_df
 
 def main():
-    logger.info("This is the %s version of this script", VERSION)
+    logger.info("This is the %s version of this script", __version__)
     ### check if config exists
-    if not os.path.exists(CFG_FNAME):
+    if not Config.exists():
         print("Could not find config file. Attempting to create one...")
-        create_cfgfile()
+        Config.create()
         print("Please adjust config file and restart.")
         input("Press enter to exit...")
         logger_file_handler.close()
@@ -191,8 +210,7 @@ def main():
         sys.exit()
 
     ### set up config values
-    cfg = parse_cfgfile()
-    set_global_params(cfg)
+    Config.initialise()
 
     ### get list of relevant files
     fnames = get_files()
@@ -203,8 +221,8 @@ def main():
     # archive results and inputs
     logger.info("----------------------------------------------------")
     logger.info("Finished analysis, starting to save results")
-    SAVENAME = FPREFIX_RC + TIMESTAMP
-    RESDIRPATH = os.path.join(FPATH, SAVENAME)
+    SAVENAME = Config.FPREFIX_RC + TIMESTAMP
+    RESDIRPATH = os.path.join(Config.FPATH, SAVENAME)
     os.mkdir(RESDIRPATH)
     logger.info("Created output directory at %s", RESDIRPATH)
 
@@ -228,7 +246,7 @@ def main():
 
     # backup config file
     CFG_BCKP_PATH = os.path.join(RESDIRPATH, SAVENAME + ".cfg")
-    shutil.copy2(CFG_FNAME, CFG_BCKP_PATH)
+    shutil.copy2(Config.CFGFILE, CFG_BCKP_PATH)
     logger.info("Saved config file at %s", CFG_BCKP_PATH)
 
     # close and move logfile and shutdown
