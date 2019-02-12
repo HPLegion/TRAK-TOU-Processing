@@ -94,6 +94,10 @@ if __name__ == "__main__":
     logger.addHandler(logger_file_handler)
     logger.addHandler(logger_stream_handler)
 
+    class Progress:
+        total = 0
+        current = 0
+
     class Config:
         """Static class that deals with everything related to the config and settings"""
         CFGFILE = "tou-batch.cfg" # Not dependent on cfg file
@@ -229,6 +233,8 @@ if __name__ == "__main__":
         """
         Passes the results of a single file to the logger
         """
+        Progress.current = Progress.current + 1
+        logger.info("Processed %d / %d", Progress.current, Progress.total)
         logger.info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Incoming Result ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
         for key, val in result.items():
             if isinstance(val, str):
@@ -264,11 +270,17 @@ if __name__ == "__main__":
             j = {"fpath":os.path.join(Config.FPATH, fn)}
             j.update(defargs)
             jobs.append(j)
+        
+        Progress.total = len(jobs)
+        
         reslist = []
-        for j in jobs:
-            res = single_file_pipeline(j)
-            log_results(res)
-            reslist.append(res)
+        with mp.Pool(Config.PROCESSES) as pool:
+            for j in jobs:
+                res = pool.apply_async(single_file_pipeline, args=(j,),
+                                       callback=log_results, error_callback=logger.info)
+                reslist.append(res)
+            reslist = [res.get() for res in reslist]
+
         res_df = merge_results(reslist)
 
         # archive results and inputs
