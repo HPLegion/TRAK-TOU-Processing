@@ -3,7 +3,7 @@ A script that crawls through a directory full of TOU files conforming to a certa
 and analyses them, there are certain requirements for the format of the file name in order for them
 to be broken into parameters correctly
 """
-__version__ = "2018-12-19 14:50"
+__version__ = "2019-02-12 14:51"
 
 import os
 import sys
@@ -258,6 +258,7 @@ if __name__ == "__main__":
 
         ### set up config values
         Config.initialise()
+        t_start = time.time()
 
         ### get list of relevant files
         fnames = get_files()
@@ -284,8 +285,8 @@ if __name__ == "__main__":
         res_df = merge_results(reslist)
 
         # archive results and inputs
-        logger.info("----------------------------------------------------")
-        logger.info("Finished analysis, starting to save results")
+        logger.info("Finished analysis, time elapsed: %d s.", int(time.time()-t_start))
+        logger.info("Starting to save results")
         save_name = Config.FPREFIX_RC + TIMESTAMP
         res_path = os.path.join(Config.FPATH, save_name)
         os.mkdir(res_path)
