@@ -227,6 +227,7 @@ def main():
             logger.info("Set Config.FPREFIX to %s", cls.FPREFIX)
             logger.info("Set Config.ZMIN to %s", str(cls.ZMIN))
             logger.info("Set Config.ZMAX to %s", str(cls.ZMAX))
+            logger.info("Set Config.PROCESSES to %s", str(cls.PROCESSES))
 
     def get_files():
         """Acquire all matching TOU filenames"""
