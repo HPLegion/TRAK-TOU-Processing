@@ -6,9 +6,10 @@ import numpy as np
 from scipy.constants import (speed_of_light as C_0,
                              atomic_mass as AMU,
                              elementary_charge as Q_E,
-                             pi as PI)
+                             #  pi as PI
+                            )
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+# from mpl_toolkits.mplot3d import Axes3D
 
 class TouParticle:
     """
@@ -358,6 +359,9 @@ class TouBeam:
         return len(self._particles)
 
     def plot_trajectories(self, x="z", y="r", fig=None, nskip=1):
+        """
+        Plots two properties of each trajectory at all available timesteps for all trajectories
+        """
         if not fig:
             fig = plt.figure()
         ax = fig.gca()
@@ -368,36 +372,95 @@ class TouBeam:
         ax.set_ylabel(y)
         return fig
 
-    def mean_radius(self, zmin=None, zmax=None):
-        # Take z positions of first particle as sample points
-        zref = np.sort(self._particles[0].z)
+
+    def _interpolate_along_z(self, quantity, zmin=None, zmax=None, tr_id=0):
+        """
+        Takes the z coordiantes of trajectory "tr_id" and resamples a given quantity for these
+        z values for all trajectories, zrange can be limited
+        """
+        # Take z positions of selected particle as sample points
+        zref = np.sort(self._particles[tr_id].z)
         if not (zmin or zmax):
             zmin = np.min(zref)
         zref = np.clip(zref, a_min=zmin, a_max=zmax)
-        nz = len(zref)
-        currents = np.array([p.current for p in self._particles])
         # Interpolate the radii at each zref
-        rs = []
+        qs = []
         for p in self._particles:
-            rs.append(np.interp(zref, p.z, p.r))
+            qs.append(np.interp(zref, p.z, getattr(p, quantity)))
+        return (zref, qs)
+
+    ### The following method is flawed, the computation of the mean radius as done here, does
+    ### not make sense
+    # def mean_radius(self, zmin=None, zmax=None):
+    #     """Compute the mean radius of the beam at a series of z positions"""
+    #     zref, rs = self._interpolate_along_z("r", zmin=zmin, zmax=zmax)
+    #     nz = len(zref)
+    #     rs = np.stack(rs)
+    #     rs = np.split(rs.T, nz)
+
+    #     currents = np.array([p.current for p in self._particles])
+    #     rmean = []
+    #     weights = currents/self.current
+    #     for r in rs:
+    #         dr = np.mean(np.abs(np.diff(r))) # Approximation of particle distance/annulus thickness
+    #         rmean.append(np.sqrt(np.sum(weights * 2 * r * dr)))
+    #     rmean = np.array(rmean)
+    #     return (zref, rmean)
+
+    def outer_radius(self, zmin=None, zmax=None):
+        """Compute the max radius of the beam at a series of z positions"""
+        zref, rs = self._interpolate_along_z("r", zmin=zmin, zmax=zmax)
         rs = np.stack(rs)
-        rs = np.split(rs.T, nz)
+        rmax = rs.T.max(axis=1)
+        return (zref, rmax)
 
-        rmean = []
-        weights = currents/self.current
-        for r in rs:
-            dr = np.mean(np.abs(np.diff(r))) # Approximation of particle distance/annulus thickness
-            rmean.append(np.sqrt(np.sum(weights * 2 * r * dr)))
-        rmean = np.array(rmean)
-        return (zref, rmean)
+    def outer_radius_characteristics(self, zmin=None, zmax=None):
+        z, r = self.outer_radius(zmin=zmin, zmax=zmax)
 
-    def plot_mean_radius(self, zmin=None, zmax=None):
-        z, r = self.mean_radius(zmin=zmin, zmax=zmax)
+        rp = np.gradient(r, z)
 
-        fig = plt.figure()
+        peaks = np.nonzero((rp[:-1] > 0) & (0 > rp[1:]))[0]
+        dips = np.nonzero((rp[:-1] < 0) & (0 < rp[1:]))[0]
+
+        if len(peaks) < 2 and len(dips) < 2:
+            if len(peaks) == 1 and len(dips) == 1:
+                minz, maxz = min(peaks[0], dips[0]), max(peaks[0], dips[0])
+                period = 2 * (maxz-minz)
+                rngmsk = np.nonzero((minz < z) & (z <= maxz))
+                rmean = r[rngmsk].mean()
+                rstd = r[rngmsk].std()
+                return ((minz+maxz)/2, rmean, rstd, period)
+            else:
+                return (np.nan, np.nan, np.nan, np.nan)
+
+        if len(peaks) > len(dips):
+            zsp = z[peaks]
+        else:
+            zsp = z[dips]
+
+        period = np.diff(zsp).mean()
+        rngmsk = np.nonzero((zsp[0] <= z) & (z <= zsp[-1]))
+
+        rmean = r[rngmsk].mean()
+        rstd = r[rngmsk].std()
+
+        return (zsp.mean(), rmean, rstd, period)
+
+    def plot_outer_radius(self, zmin=None, zmax=None, fig=None):
+        z, r = self.outer_radius(zmin=zmin, zmax=zmax)
+
+        rp = np.gradient(r, z)
+
+        peaks = np.nonzero((rp[:-1] > 0) & (0 > rp[1:]))[0]
+        dips = np.nonzero((rp[:-1] < 0) & (0 < rp[1:]))[0]
+
+        if not fig:
+            fig = plt.figure()
         ax = fig.gca()
 
-        ax.plot(z, r)
+        ax.plot(z, r, "k")
+        ax.plot(z[peaks], r[peaks], 'ro')
+        ax.plot(z[dips], r[dips], 'bo')
         ax.set_xlabel("z")
-        ax.set_ylabel("r mean")
+        ax.set_ylabel("r max")
         return fig
