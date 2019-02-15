@@ -3,7 +3,7 @@ A script that crawls through a directory full of TOU files conforming to a certa
 and analyses them, there are certain requirements for the format of the file name in order for them
 to be broken into parameters correctly
 """
-__version__ = "2019-02-12 14:51"
+__version__ = "2019-02-15 10:30"
 
 import os
 import sys
@@ -23,8 +23,10 @@ from tou_particle import TouBeam
 DF_FNAME = "fname"
 DF_NTR = "ntr"
 DF_NTR_LOST = "ntr_lost"
+DF_BEAM_RADIUS_Z0 = "beam_radius_z0"
 DF_BEAM_RADIUS_MEAN = "beam_radius_mean"
 DF_BEAM_RADIUS_STD = "beam_radius_std"
+DF_BEAM_RADIUS_PERIOD = "beam_radius_period"
 # the following lists contains the names of the methods of the trajectory objects that we want to
 # evaluate and find the maximum of within each file
 MAX_TASK_LIST = ["max_ang_with_z",
@@ -35,10 +37,10 @@ DF_COLS = [DF_FNAME, DF_NTR, DF_NTR_LOST]
 for taskname in MAX_TASK_LIST:
     DF_COLS.append("max_" + taskname + "_z0")
     DF_COLS.append("max_" + taskname)
-DF_COLS.append(DF_BEAM_RADIUS_MEAN + "_z0")
+DF_COLS.append(DF_BEAM_RADIUS_Z0)
 DF_COLS.append(DF_BEAM_RADIUS_MEAN)
-DF_COLS.append(DF_BEAM_RADIUS_STD + "_z0")
 DF_COLS.append(DF_BEAM_RADIUS_STD)
+DF_COLS.append(DF_BEAM_RADIUS_PERIOD)
 
 
 
@@ -89,11 +91,10 @@ def single_file_pipeline(job):
         out["max_" + tsk] = res
 
     beam = TouBeam(trajs)
-    zr, rm = beam.mean_radius()
-    out[DF_BEAM_RADIUS_MEAN + "_z0"] = zr.mean()
-    out[DF_BEAM_RADIUS_MEAN] = rm.mean()
-    out[DF_BEAM_RADIUS_STD + "_z0"] = zr.mean()
-    out[DF_BEAM_RADIUS_STD] = rm.std()
+    (out[DF_BEAM_RADIUS_Z0],
+     out[DF_BEAM_RADIUS_MEAN],
+     out[DF_BEAM_RADIUS_STD],
+     out[DF_BEAM_RADIUS_PERIOD]) = beam.outer_radius_characteristics()
 
     return out
 
@@ -320,6 +321,7 @@ def main():
             piv_task_list.append({"values":"max_" + tsk, "index":"p0", "columns":"p1"})
         piv_task_list.append({"values":DF_BEAM_RADIUS_MEAN, "index":"p0", "columns":"p1"})
         piv_task_list.append({"values":DF_BEAM_RADIUS_STD, "index":"p0", "columns":"p1"})
+        piv_task_list.append({"values":DF_BEAM_RADIUS_PERIOD, "index":"p0", "columns":"p1"})
 
         # and execute them
         for tsk in piv_task_list:
