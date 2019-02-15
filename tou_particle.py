@@ -431,7 +431,7 @@ class TouBeam:
                 rstd = r[rngmsk].std()
                 return ((minz+maxz)/2, rmean, rstd, period)
             else:
-                return (np.nan, np.nan, np.nan, np.nan)
+                return (z.mean(), r.mean(), r.std(), z.max()-z.min())
 
         if len(peaks) > len(dips):
             zsp = z[peaks]
