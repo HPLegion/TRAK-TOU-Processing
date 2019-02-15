@@ -423,14 +423,14 @@ class TouBeam:
         dips = np.nonzero((rp[:-1] < 0) & (0 < rp[1:]))[0]
 
         if len(peaks) < 2 and len(dips) < 2:
-            if len(peaks) == 1 and len(dips) == 1:
-                minz, maxz = min(peaks[0], dips[0]), max(peaks[0], dips[0])
-                period = 2 * (maxz-minz)
-                rngmsk = np.nonzero((minz < z) & (z <= maxz))
-                rmean = r[rngmsk].mean()
-                rstd = r[rngmsk].std()
-                return ((minz+maxz)/2, rmean, rstd, period)
-            else:
+            # if len(peaks) == 1 and len(dips) == 1:
+            #     minz, maxz = min(peaks[0], dips[0]), max(peaks[0], dips[0])
+            #     period = 2 * (maxz-minz)
+            #     rngmsk = np.nonzero((minz < z) & (z <= maxz))
+            #     rmean = r[rngmsk].mean()
+            #     rstd = r[rngmsk].std()
+            #     return ((minz+maxz)/2, rmean, rstd, period)
+            # else:
                 return (z.mean(), r.mean(), r.std(), z.max()-z.min())
 
         if len(peaks) > len(dips):
