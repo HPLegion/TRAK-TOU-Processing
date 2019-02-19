@@ -9,3 +9,4 @@ dist
 .pytest_cache
 NA53FC1F_0_1A_0_4kGs.TOU
 tou_batch.pyz
+temp/*
