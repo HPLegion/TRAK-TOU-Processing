@@ -49,14 +49,20 @@ def parse_filename(fname, fpref, fposf):
     # Strip prefix and postfix
     fname = fname.replace(fpref, "")
     fname = fname.replace(fposf, "")
-    # remove all remaining alphabetic characters
-    for c in "ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz":
-        fname = fname.replace(c, "")
-    # Assemble values and return as list
-    values = fname.split("_")
+
+    pattern = r"(\d+_?\d*)"
+    vals = re.findall(pattern, fname)
     param = {}
-    for i in range(len(values)//2):
-        param["p"+str(i)] = float(values[2*i] + "." + values[2*i+1])
+    for i, v in enumerate(vals):
+        param["p"+str(i)] = float(v.replace("_", "."))
+    # # remove all remaining alphabetic characters
+    # for c in "ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz":
+    #     fname = fname.replace(c, "")
+    # # Assemble values and return as list
+    # values = fname.split("_")
+    # param = {}
+    # for i in range(len(values)//2):
+    #     param["p"+str(i)] = float(values[2*i] + "." + values[2*i+1])
     return param
 
 def single_file_pipeline(job):
@@ -325,11 +331,15 @@ def main():
 
         # and execute them
         for tsk in piv_task_list:
-            piv = res_df.pivot(index=tsk["index"], columns=tsk["columns"], values=tsk["values"])
-            name = "_".join([save_name, tsk["index"], tsk["columns"], tsk["values"] + ".csv"])
-            piv_path = os.path.join(res_path, name)
-            piv.to_csv(piv_path)
-            logger.info("Saved pivot table %s to %s", str(tsk), piv_path)
+            try:
+                piv = res_df.pivot(index=tsk["index"], columns=tsk["columns"], values=tsk["values"])
+                name = "_".join([save_name, tsk["index"], tsk["columns"], tsk["values"] + ".csv"])
+                piv_path = os.path.join(res_path, name)
+                piv.to_csv(piv_path)
+                logger.info("Saved pivot table %s to %s", str(tsk), piv_path)
+            except Exception as e:
+                logger.error("Could not perform pivot task %s", str(tsk))
+                logger.error("Intercepted exception, %s", str(e))
 
         # backup config file
         cfg_bckp_path = os.path.join(res_path, save_name + ".cfg")
