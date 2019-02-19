@@ -3,7 +3,7 @@ A script that crawls through a directory full of TOU files conforming to a certa
 and analyses them, there are certain requirements for the format of the file name in order for them
 to be broken into parameters correctly
 """
-__version__ = "2019-02-15 10:30"
+__version__ = "2019-02-19 10:35"
 
 import os
 import sys
