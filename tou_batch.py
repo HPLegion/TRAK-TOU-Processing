@@ -50,7 +50,7 @@ def parse_filename(fname, fpref, fposf):
     fname = fname.replace(fpref, "")
     fname = fname.replace(fposf, "")
 
-    pattern = r"(\d+_?\d*)"
+    pattern = r"(-?\d+_?\d*)"
     vals = re.findall(pattern, fname)
     param = {}
     for i, v in enumerate(vals):
