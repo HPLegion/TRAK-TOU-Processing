@@ -92,15 +92,24 @@ def single_file_pipeline(job):
     for tsk in MAX_TASK_LIST:
         # the following expression evaluates the task for all trajectories and extracts the
         # largest values and the corresponding value of z
-        z0, res = max([getattr(tr, tsk)() for tr in trajs], key=lambda x: x[1])
+        try:
+            z0, res = max([getattr(tr, tsk)() for tr in trajs], key=lambda x: x[1])
+        except ValueError:
+            z0 = res = float("nan")
         out["max_" + tsk + "_z0"] = z0
         out["max_" + tsk] = res
 
     beam = TouBeam(trajs)
-    (out[DF_BEAM_RADIUS_Z0],
-     out[DF_BEAM_RADIUS_MEAN],
-     out[DF_BEAM_RADIUS_STD],
-     out[DF_BEAM_RADIUS_PERIOD]) = beam.outer_radius_characteristics()
+    try:
+        (out[DF_BEAM_RADIUS_Z0],
+        out[DF_BEAM_RADIUS_MEAN],
+        out[DF_BEAM_RADIUS_STD],
+        out[DF_BEAM_RADIUS_PERIOD]) = beam.outer_radius_characteristics()
+    except IndexError:
+        (out[DF_BEAM_RADIUS_Z0],
+        out[DF_BEAM_RADIUS_MEAN],
+        out[DF_BEAM_RADIUS_STD],
+        out[DF_BEAM_RADIUS_PERIOD]) = float("nan"), float("nan"), float("nan"), float("nan")
 
     return out
 
