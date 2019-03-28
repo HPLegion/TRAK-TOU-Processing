@@ -11,7 +11,7 @@ from scipy.constants import (speed_of_light as C_0,
 import matplotlib.pyplot as plt
 # from mpl_toolkits.mplot3d import Axes3D
 
-class TouParticle:
+class Particle:
     """
     A data container for particle information imported from a TOU file.
     Also extends the trajectory data with useful particle information in an easy to access way
@@ -335,7 +335,7 @@ class TouParticle:
         return (self.z[mask].mean(), self.kin_energy_trans[mask].mean())
 
 
-class TouBeam:
+class Beam:
     """
     A class holding a number of trajectories forming a beam
     Provides convenience functions and properties

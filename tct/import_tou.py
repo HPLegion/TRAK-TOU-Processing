@@ -3,7 +3,7 @@ Contains functions to import a TREK TOU output file
 """
 
 import pandas as pd
-from .tou_particle import TouParticle, TouBeam
+from .beam_particle import Particle, Beam
 
 _TOU_COLNAMES = ["t", "x", "y", "z"]
 
@@ -101,7 +101,7 @@ def import_tou_as_particles(filename, zmin=None, zmax=None):
     If zmin and / or zmax are set, they limit the imported trajectory range by z value
     """
     trajectories, constants = _read_tou(filename, zmin, zmax)
-    return [TouParticle(trajectories[k], constants[k]) for k in range(len(trajectories))]
+    return [Particle(trajectories[k], constants[k]) for k in range(len(trajectories))]
 
 def import_tou_as_beam(filename, zmin=None, zmax=None):
     """
@@ -109,4 +109,4 @@ def import_tou_as_beam(filename, zmin=None, zmax=None):
     relevant information in easily accesible form
     If zmin and / or zmax are set, they limit the imported trajectory range by z value
     """
-    return TouBeam(import_tou_as_particles(filename, zmin=zmin, zmax=zmax))
+    return Beam(import_tou_as_particles(filename, zmin=zmin, zmax=zmax))
