@@ -346,17 +346,19 @@ class Beam:
 
         particles is a list of TouParticle objects
         """
-        self._particles = particles
+        self.particles = particles
+        self.zmin = np.min([np.min(p.z) for p in self.particles])
+        self.zmax = np.max([np.max(p.z) for p in self.particles])
 
     @property
     def current(self):
         """Total beam current"""
-        return sum(p.current for p in self._particles)
+        return sum(p.current for p in self.particles)
 
     @property
     def ntr(self):
         """Number of trajectories"""
-        return len(self._particles)
+        return len(self.particles)
 
     def plot_trajectories(self, x="z", y="r", ax=None, nskip=1, **kwargs):
         """
@@ -365,7 +367,7 @@ class Beam:
         if not ax:
             fig, ax = plt.subplots()
 
-        for p in self._particles[::nskip]:
+        for p in self.particles[::nskip]:
             ax.plot(getattr(p, x), getattr(p, y), **kwargs)
         ax.set_xlabel(x)
         ax.set_ylabel(y)
@@ -378,13 +380,13 @@ class Beam:
         z values for all trajectories, zrange can be limited
         """
         # Take z positions of selected particle as sample points
-        zref = np.sort(self._particles[tr_id].z)
+        zref = np.sort(self.particles[tr_id].z)
         if not (zmin or zmax):
             zmin = np.min(zref)
         zref = np.clip(zref, a_min=zmin, a_max=zmax)
         # Interpolate the radii at each zref
         qs = []
-        for p in self._particles:
+        for p in self.particles:
             qs.append(np.interp(zref, p.z, getattr(p, quantity)))
         return (zref, qs)
 
