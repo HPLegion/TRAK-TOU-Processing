@@ -1,12 +1,16 @@
+"""
+Contains methods for import Tricomp Mesh Input files
+"""
+
 import re
 from matplotlib.path import Path as MPLPath
 import numpy as np
 
-_TRAKSEPCHAR = r"[\s,\t:\(\)=]+"
+_MIN_SEPCHAR = r"[\s,\t:\(\)=]+"
 
-def parse_trak_geometry(path, scale=1.0, xshift=0.0, yshift=0.0):
+def import_min_as_regions(path, scale=1.0, xshift=0.0, yshift=0.0):
     """
-    Reads a TRAK Mesh Input file and returns a list of Region objects describing the individual
+    Reads a Tricomp Mesh Input file and returns a list of Region objects describing the individual
     regions defined in the MIN file
     """
     regions = []
@@ -42,7 +46,7 @@ def parse_trak_geometry(path, scale=1.0, xshift=0.0, yshift=0.0):
             else:
                 fill = False
 
-            line = re.split(_TRAKSEPCHAR, line)
+            line = re.split(_MIN_SEPCHAR, line)
             if len(line) == 2:
                 name = line[1]
             else:
@@ -55,7 +59,7 @@ def parse_trak_geometry(path, scale=1.0, xshift=0.0, yshift=0.0):
                     break
                 if rline.startswith(r"*"):
                     continue # Skip comments
-                rline = re.split(_TRAKSEPCHAR, rline)
+                rline = re.split(_MIN_SEPCHAR, rline)
                 rline[1:] = [scale*float(val) for val in rline[1:]]
 
                 if rline[0] == "p":
