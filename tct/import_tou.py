@@ -5,8 +5,7 @@ Contains functions to import a TREK TOU output file
 import pandas as pd
 from .tou_particle import TouParticle, TouBeam
 
-TOU_COLWIDTHS = [14, 14, 14, 14] # bytes per data column
-TOU_COLNAMES = ["t", "x", "y", "z"]
+_TOU_COLNAMES = ["t", "x", "y", "z"]
 
 def _read_tou_blockwise(filename, zmin=None, zmax=None):
     """
@@ -50,7 +49,7 @@ def _read_tou_blockwise(filename, zmin=None, zmax=None):
                 # if last line of trajectory block process trajectory information
                 if line_data[0] == -1:
                     trajectory = trajectory[:-1] # Skip last row (TRAK repeats it with t = -1)
-                    df_trajectory = pd.DataFrame(trajectory, columns=TOU_COLNAMES)
+                    df_trajectory = pd.DataFrame(trajectory, columns=_TOU_COLNAMES)
                     yield (df_trajectory, constants)
                     trajectory = list()
 
