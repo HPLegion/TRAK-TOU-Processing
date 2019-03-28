@@ -1,12 +1,13 @@
 import os
-import matplotlib.pyplot as plt
-from trak_geometry import parse_trak_geometry
-from import_tou import beam_from_tou
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import tqdm
 import pandas as pd
 import numpy as np
 import scipy.interpolate
+
+from tct import *
+from figure_macros import *
 
 CWD = "C:\TRAKTEMP\REXGUN_THERMAL\long_anode_l_highres"
 XLIM = [-.06, .2]
@@ -15,21 +16,10 @@ YLIM_ACCEPT = [0, 180]
 
 os.chdir(CWD)
 
-egeo = parse_trak_geometry("ERex1mm_500Gs_long_anode_l.min", scale=0.001)
-bgeo = parse_trak_geometry("BRex_36_28_6.MIN", xshift=0.0007, scale=0.001)
-[print(reg.to_svg_path()) for reg in egeo]
-
-fig, ax = plt.subplots()
-ax.set_xlabel("z")
-ax.set_ylabel("r")
-ax.set_title("test")
-ax.set_xlim()
-ax.set_ylim()
-for reg in egeo[1:]:
-    path = reg.to_mpl_path()
-    patch = mpl.patches.PathPatch(path, edgecolor="k", facecolor="tab:gray")
-    ax.add_patch(patch)
-plt.show()
+egeo = import_min_as_regions("ERex1mm_500Gs_long_anode_l.min", scale=0.001)
+bgeo = import_min_as_regions("BRex_36_28_6.MIN", xshift=0.0007, scale=0.001)
+egeo = [r.to_mpl_path() for r in egeo[1:]] # Skip domain boundaries during conversion
+bgeo = [r.to_mpl_path() for r in bgeo[1:]] # Skip domain boundaries during conversion
 
 # magdf = pd.read_csv("./FBREX-36-28_6+0_7MM_500GS_AXIS_SCAN.TXT", comment="#", sep=r"\s+")
 # magdf.Z = magdf.Z/1000
@@ -39,36 +29,11 @@ plt.show()
 # files = [f for f in files if f.endswith("TOU")]
 
 
-# for f in ["Rex1mm500Gs_36_28_6+0_7mm_long_anode_0V_0_8A.TOU"]:#tqdm.tqdm(files):
+for f in ["Rex1mm500Gs_36_28_6+0_7mm_long_anode_0V_0_8A.TOU"]:#tqdm.tqdm(files):
     
-#     b = beam_from_tou(f)
-
-#     ################ Trajectory Plot
-#     fig, ax = plt.subplots(figsize=(12, 9))
-
-#     # for reg in bgeo[1:]:
-#     #     path = reg.to_mpl_path()
-#     #     patch = mpl.patches.PathPatch(path, edgecolor="b", fill=False)
-#     #     ax.add_patch(patch)
-
-#     for reg in egeo[1:]:
-#         path = reg.to_mpl_path()
-#         patch = mpl.patches.PathPatch(path, edgecolor="k", facecolor="tab:gray")
-#         ax.add_patch(patch)
-
-#     b.plot_trajectories(ax=ax, lw=".75")
-
-#     ax.set_xlim(XLIM)
-#     ax.set_ylim(YLIM)
-#     ax.set_title(f)
-#     ax.set_xlabel("$z$ (m)")
-#     ax.set_ylabel("$r$ (m)")
-#     plt.tight_layout()
-#     # plt.show()
-#     plt.savefig(f[:-4] + ".png")
-#     plt.close(fig)
-#     # print(f)
-#     ################ Trajectory Plot
+    beam = import_tou_as_beam(f)
+    fig = plot_trajectories(beam, egeo=egeo)
+    plt.show()
 
     # ################ Acceptance Plot
     # fig, ax = plt.subplots(figsize=(12, 9))
