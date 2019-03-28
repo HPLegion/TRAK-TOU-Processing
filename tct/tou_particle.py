@@ -358,19 +358,18 @@ class TouBeam:
         """Number of trajectories"""
         return len(self._particles)
 
-    def plot_trajectories(self, x="z", y="r", fig=None, nskip=1):
+    def plot_trajectories(self, x="z", y="r", ax=None, nskip=1, **kwargs):
         """
         Plots two properties of each trajectory at all available timesteps for all trajectories
         """
-        if not fig:
-            fig = plt.figure()
-        ax = fig.gca()
+        if not ax:
+            fig, ax = plt.subplots()
 
         for p in self._particles[::nskip]:
-            ax.plot(getattr(p, x), getattr(p, y))
+            ax.plot(getattr(p, x), getattr(p, y), **kwargs)
         ax.set_xlabel(x)
         ax.set_ylabel(y)
-        return fig
+        return ax.figure
 
 
     def _interpolate_along_z(self, quantity, zmin=None, zmax=None, tr_id=0):
@@ -446,7 +445,7 @@ class TouBeam:
 
         return (zsp.mean(), rmean, rstd, period)
 
-    def plot_outer_radius(self, zmin=None, zmax=None, fig=None):
+    def plot_outer_radius(self, zmin=None, zmax=None, ax=None):
         z, r = self.outer_radius(zmin=zmin, zmax=zmax)
 
         rp = np.gradient(r, z)
@@ -454,13 +453,18 @@ class TouBeam:
         peaks = np.nonzero((rp[:-1] > 0) & (0 > rp[1:]))[0]
         dips = np.nonzero((rp[:-1] < 0) & (0 < rp[1:]))[0]
 
-        if not fig:
-            fig = plt.figure()
-        ax = fig.gca()
+        if not ax:
+            fig, ax = plt.subplots()
 
         ax.plot(z, r, "k")
         ax.plot(z[peaks], r[peaks], 'ro')
         ax.plot(z[dips], r[dips], 'bo')
         ax.set_xlabel("z")
         ax.set_ylabel("r max")
-        return fig
+        return ax.figure
+
+def peaks_and_dips_args(x, y):
+        yp = np.gradient(y, x)
+        peaks = np.nonzero((yp[:-1] > 0) & (0 > yp[1:]))[0]
+        dips = np.nonzero((yp[:-1] < 0) & (0 < yp[1:]))[0]
+        return peaks, dips
