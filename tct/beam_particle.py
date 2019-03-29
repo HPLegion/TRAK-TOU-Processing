@@ -365,7 +365,7 @@ class Beam:
         Plots two properties of each trajectory at all available timesteps for all trajectories
         """
         if not ax:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
 
         for p in self.particles[::nskip]:
             ax.plot(getattr(p, x), getattr(p, y), **kwargs)
@@ -403,25 +403,31 @@ class Beam:
     #     rmean = []
     #     weights = currents/self.current
     #     for r in rs:
-    #         dr = np.mean(np.abs(np.diff(r))) # Approximation of particle distance/annulus thickness
+    #         dr = np.mean(np.abs(np.diff(r))) #Approximation of particle distance/annulus thicknes
     #         rmean.append(np.sqrt(np.sum(weights * 2 * r * dr)))
     #     rmean = np.array(rmean)
     #     return (zref, rmean)
 
+    # TODO: Implement more robustly, right now it just takes trajectory #0
     def outer_radius(self, zmin=None, zmax=None):
-        """Compute the max radius of the beam at a series of z positions"""
+        """
+        Compute the max radius of the beam at a series of z positions
+        """
         zref, rs = self._interpolate_along_z("r", zmin=zmin, zmax=zmax)
         rs = np.stack(rs)
         rmax = rs.T.max(axis=1)
         return (zref, rmax)
 
     def outer_radius_characteristics(self, zmin=None, zmax=None):
+        """
+        Compute some characteristic properties of the edge of the beam (outermost trajectory)
+
+        Returns
+        (mean z pos, mean radius, std radius, period)
+        """
         z, r = self.outer_radius(zmin=zmin, zmax=zmax)
 
-        rp = np.gradient(r, z)
-
-        peaks = np.nonzero((rp[:-1] > 0) & (0 > rp[1:]))[0]
-        dips = np.nonzero((rp[:-1] < 0) & (0 < rp[1:]))[0]
+        peaks, dips = _peaks_and_dips_args(z, r)
 
         if len(peaks) < 2 and len(dips) < 2:
             # if len(peaks) == 1 and len(dips) == 1:
@@ -432,7 +438,7 @@ class Beam:
             #     rstd = r[rngmsk].std()
             #     return ((minz+maxz)/2, rmean, rstd, period)
             # else:
-                return (z.mean(), r.mean(), r.std(), z.max()-z.min())
+            return (z.mean(), r.mean(), r.std(), z.max()-z.min())
 
         if len(peaks) > len(dips):
             zsp = z[peaks]
@@ -448,15 +454,18 @@ class Beam:
         return (zsp.mean(), rmean, rstd, period)
 
     def plot_outer_radius(self, zmin=None, zmax=None, ax=None):
+        """
+        Plot the outermost radius of the beam (outermost particle) and mark maxima and minima
+
+        Returns
+        figure object
+        """
         z, r = self.outer_radius(zmin=zmin, zmax=zmax)
 
-        rp = np.gradient(r, z)
-
-        peaks = np.nonzero((rp[:-1] > 0) & (0 > rp[1:]))[0]
-        dips = np.nonzero((rp[:-1] < 0) & (0 < rp[1:]))[0]
+        peaks, dips = _peaks_and_dips_args(z, r)
 
         if not ax:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
 
         ax.plot(z, r, "k")
         ax.plot(z[peaks], r[peaks], 'ro')
@@ -465,8 +474,9 @@ class Beam:
         ax.set_ylabel("r max")
         return ax.figure
 
-def peaks_and_dips_args(x, y):
-        yp = np.gradient(y, x)
-        peaks = np.nonzero((yp[:-1] > 0) & (0 > yp[1:]))[0]
-        dips = np.nonzero((yp[:-1] < 0) & (0 < yp[1:]))[0]
-        return peaks, dips
+def _peaks_and_dips_args(x, y):
+    """Returns the indices of local maxima and minima in y"""
+    yp = np.gradient(y, x)
+    peaks = np.nonzero((yp[:-1] > 0) & (yp[1:] < 0))[0]
+    dips = np.nonzero((yp[:-1] < 0) & (yp[1:] > 0))[0]
+    return peaks, dips

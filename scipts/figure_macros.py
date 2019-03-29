@@ -36,6 +36,9 @@ def plot_geometry(geo, ax=None, **kwargs):
     return ax.figure
 
 def plot_ang_with_z(beam, ax=None, xlim=None, ylim=None, title=None):
+    """
+    Plot the pitch angles (w.r.t. e_z) of particles vs their z position
+    """
     if not ax:
         _, ax = plt.subplots(figsize=(12, 9))
 
