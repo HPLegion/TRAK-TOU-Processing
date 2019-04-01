@@ -347,8 +347,6 @@ class Beam:
         particles is a list of TouParticle objects
         """
         self.particles = particles
-        self.zmin = np.min([np.min(p.z) for p in self.particles])
-        self.zmax = np.max([np.max(p.z) for p in self.particles])
 
     @property
     def current(self):
