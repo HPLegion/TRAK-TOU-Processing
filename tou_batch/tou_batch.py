@@ -3,7 +3,7 @@ A script that crawls through a directory full of TOU files conforming to a certa
 and analyses them, there are certain requirements for the format of the file name in order for them
 to be broken into parameters correctly
 """
-__version__ = "2019-02-19 10:35"
+__version__ = "2019-04-01 10:00"
 
 import os
 import sys
@@ -15,8 +15,9 @@ import time
 from collections import OrderedDict
 import pandas as pd
 
-import import_tou
-from tou_particle import TouBeam
+# import import_tou
+# from tou_particle import TouBeam
+from tct import import_tou_as_particles, Beam
 
 ### Constants
 # Names of dataframe columns
@@ -84,7 +85,7 @@ def single_file_pipeline(job):
     param = parse_filename(fname, job["fpref"], job["fposf"])
     out.update(param)
 
-    trajs = import_tou.particles_from_tou(job["fpath"], zmin=job["zmin"], zmax=job["zmax"])
+    trajs = import_tou_as_particles(job["fpath"], zmin=job["zmin"], zmax=job["zmax"])
     out[DF_NTR] = len(trajs)
     trajs = [tr for tr in trajs if tr.has_data]
     out[DF_NTR_LOST] = out[DF_NTR] - len(trajs)
@@ -99,17 +100,17 @@ def single_file_pipeline(job):
         out["max_" + tsk + "_z0"] = z0
         out["max_" + tsk] = res
 
-    beam = TouBeam(trajs)
+    beam = Beam(trajs)
     try:
         (out[DF_BEAM_RADIUS_Z0],
-        out[DF_BEAM_RADIUS_MEAN],
-        out[DF_BEAM_RADIUS_STD],
-        out[DF_BEAM_RADIUS_PERIOD]) = beam.outer_radius_characteristics()
+         out[DF_BEAM_RADIUS_MEAN],
+         out[DF_BEAM_RADIUS_STD],
+         out[DF_BEAM_RADIUS_PERIOD]) = beam.outer_radius_characteristics()
     except IndexError:
         (out[DF_BEAM_RADIUS_Z0],
-        out[DF_BEAM_RADIUS_MEAN],
-        out[DF_BEAM_RADIUS_STD],
-        out[DF_BEAM_RADIUS_PERIOD]) = float("nan"), float("nan"), float("nan"), float("nan")
+         out[DF_BEAM_RADIUS_MEAN],
+         out[DF_BEAM_RADIUS_STD],
+         out[DF_BEAM_RADIUS_PERIOD]) = float("nan"), float("nan"), float("nan"), float("nan")
 
     return out
 
