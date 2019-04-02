@@ -6,38 +6,40 @@ import pandas as pd
 import numpy as np
 import scipy.interpolate
 
-from tct import *
-from figure_macros import *
+from tct import import_min_as_regions, import_tou_as_beam
+from figure_macros import plot_ang_with_z, plot_trajectories
 
-CWD = "C:\TRAKTEMP\REXGUN_THERMAL\long_anode_l_highres"
+CWD = r"C:\TRAKTEMP\REXGUN_THERMAL\long_anode_xs_5mm"
 XLIM = [-.06, .2]
 YLIM = [0, .005]
 YLIM_ACCEPT = [0, 180]
 
 os.chdir(CWD)
 
-egeo = import_min_as_regions("ERex1mm_500Gs_long_anode_l.min", scale=0.001)
+egeo = import_min_as_regions("ERex1mm_500Gs_long_anode.min", scale=0.001)
 bgeo = import_min_as_regions("BRex_36_28_6.MIN", xshift=0.0007, scale=0.001)
 egeo = [r.to_mpl_path() for r in egeo[1:]] # Skip domain boundaries during conversion
 bgeo = [r.to_mpl_path() for r in bgeo[1:]] # Skip domain boundaries during conversion
 
-# magdf = pd.read_csv("./FBREX-36-28_6+0_7MM_500GS_AXIS_SCAN.TXT", comment="#", sep=r"\s+")
-# magdf.Z = magdf.Z/1000
-# field_interp = scipy.interpolate.interp1d(magdf.Z, magdf.Bz)
+magdf = pd.read_csv("./FBREX-36-28_6+0_7MM_500GS_AXIS_SCAN.TXT", comment="#", sep=r"\s+")
+magdf.Z = magdf.Z/1000
+field_interp = scipy.interpolate.interp1d(magdf.Z, magdf.Bz)
 
-# files = os.listdir(CWD)
-# files = [f for f in files if f.endswith("TOU")]
+files = os.listdir(CWD)
+files = [f for f in files if f.endswith("TOU")]
 
 
-for f in ["Rex1mm500Gs_36_28_6+0_7mm_long_anode_0V_0_8A.TOU"]:#tqdm.tqdm(files):
-    
+for f in tqdm.tqdm(files):
+    fnamestub = f[:-4]
     beam = import_tou_as_beam(f)
-    fig = plot_trajectories(beam, egeo=egeo)
-    plt.show()
+
+    fig = plot_trajectories(beam, egeo=egeo, title=f)
+    fig.savefig(fnamestub + ".png")
+    # plt.show()
 
     # ################ Acceptance Plot
     # fig, ax = plt.subplots(figsize=(12, 9))
-    
+
     # ax2 = ax.twinx()
     # ax2.plot(magdf.Z, magdf.Bz, "b-")
     # ax2.set_ylim((0, 1.0))
@@ -86,7 +88,7 @@ for f in ["Rex1mm500Gs_36_28_6+0_7mm_long_anode_0V_0_8A.TOU"]:#tqdm.tqdm(files):
     # ################### Relection Plot
 
 # fig, ax = plt.subplots(figsize=(12, 9))
-    
+
 # ax2 = ax.twinx()
 # ax2.plot(magdf.Z, magdf.Bz, "b-")
 # ax2.set_ylim((0, 2.0))
