@@ -33,6 +33,7 @@ def plot_geometry(geo, ax=None, **kwargs):
     for rp in geo:
         patch = mpl.patches.PathPatch(rp, **kwargs)
         ax.add_patch(patch)
+    plt.tight_layout()
     return ax.figure
 
 def plot_ang_with_z(beam, ax=None, xlim=None, ylim=None, title=None):
@@ -42,7 +43,7 @@ def plot_ang_with_z(beam, ax=None, xlim=None, ylim=None, title=None):
     if not ax:
         _, ax = plt.subplots(figsize=(12, 9))
 
-    beam.plot_trajectories(y="ang_with_z", ax=ax, lw=".75", color="k")
+    beam.plot_trajectories(y="ang_with_z", ax=ax, lw=".75")#, color="k")
 
     if xlim:
         ax.set_xlim(xlim)
