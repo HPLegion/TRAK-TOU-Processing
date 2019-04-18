@@ -19,6 +19,10 @@ import pandas as pd
 # from tou_particle import TouBeam
 from tct import import_tou_as_particles, Beam
 
+### temporary task patch-in
+# TODO remove hot patch
+from energyprojection import ep_analysis
+
 ### Constants
 # Names of dataframe columns
 DF_FNAME = "fname"
@@ -112,6 +116,12 @@ def single_file_pipeline(job):
          out[DF_BEAM_RADIUS_STD],
          out[DF_BEAM_RADIUS_PERIOD]) = float("nan"), float("nan"), float("nan"), float("nan")
 
+    # TODO remove hot patch
+    try:
+        ep = ep_analysis(beam, fname)
+        out.update(ep)
+    except IndexError:
+        pass
     return out
 
 def main():
@@ -259,6 +269,11 @@ def main():
         df = pd.DataFrame(reslist)
         avail_params = sorted(list(filter(re.compile(r"^p\d+$").match, list(df))),
                               key=lambda x: int(x[1:]))
+        # TODO remove hot patch
+        DF_COLS = list(df)
+        for p in avail_params:
+            DF_COLS.remove(p)
+
         df = df[avail_params + DF_COLS]
         df = df.sort_values(avail_params)
         return df

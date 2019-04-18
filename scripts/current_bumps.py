@@ -1,13 +1,15 @@
 import os
 import matplotlib.pyplot as plt
-from trak_geometry import parse_trak_geometry
-from import_tou import beam_from_tou
+from tct import import_min_as_regions, import_tou_as_beam
 import matplotlib as mpl
 
-os.chdir("C:\TRAKTEMP\REXGUN_THERMAL\long_anode_s")
+CWD = r"C:\TRAKTEMP\REXGUN_THERMAL\long_anode_xs_5mm"
+os.chdir(CWD)
 
-egeo = parse_trak_geometry("./ERex1mm_500Gs_long_anode.min", scale=0.001)
-bgeo = parse_trak_geometry("BRex_36_28_6.MIN", xshift=0.0007, scale=0.001)
+egeo = import_min_as_regions("ERex1mm_500Gs_long_anode.min", scale=0.001)
+bgeo = import_min_as_regions("BRex_36_28_6.MIN", xshift=0.0007, scale=0.001)
+egeo = [r.to_mpl_path() for r in egeo[1:]] # Skip domain boundaries during conversion
+bgeo = [r.to_mpl_path() for r in bgeo[1:]] # Skip domain boundaries during conversion
 
 beams = [
     "Rex1mm500Gs_36_28_6+0_7mm_long_anode_0V_0_1A.TOU",
@@ -20,21 +22,22 @@ beams = [
     "Rex1mm500Gs_36_28_6+0_7mm_long_anode_0V_0_8A.TOU"
 ]
 
+# beams = os.listdir(CWD)
+# beams = [f for f in beams if f.endswith("TOU")]
+
 fig, ax = plt.subplots()
 for reg in bgeo[1:]:
-    path = reg.to_mpl_path()
-    patch = mpl.patches.PathPatch(path, edgecolor="b", fill=False)
+    patch = mpl.patches.PathPatch(reg, edgecolor="b", fill=False)
     ax.add_patch(patch)
 for reg in egeo[1:]:
-    path = reg.to_mpl_path()
-    patch = mpl.patches.PathPatch(path, edgecolor="k")
+    patch = mpl.patches.PathPatch(reg, edgecolor="k")
     ax.add_patch(patch)
 for bf in beams:
-    b = beam_from_tou(bf)
+    b = import_tou_as_beam(bf)
     b.plot_outer_radius(ax=ax)
 plt.legend()
 # ax.grid()
-ax.axis("equal")
+# ax.axis("equal")
 ax.set_xlabel("z")
 ax.set_ylabel("r")
 plt.show()

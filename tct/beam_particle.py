@@ -10,6 +10,8 @@ from scipy.constants import (speed_of_light as C_0,
                             )
 import matplotlib.pyplot as plt
 # from mpl_toolkits.mplot3d import Axes3D
+from functools import lru_cache
+
 
 class Particle:
     """
@@ -372,6 +374,7 @@ class Beam:
         return ax.figure
 
 
+    @lru_cache(maxsize=10)
     def _interpolate_along_z(self, quantity, zmin=None, zmax=None, tr_id=0):
         """
         Takes the z coordiantes of trajectory "tr_id" and resamples a given quantity for these
@@ -406,7 +409,7 @@ class Beam:
     #     rmean = np.array(rmean)
     #     return (zref, rmean)
 
-    # TODO: Implement more robustly, right now it just takes trajectory #0
+    @lru_cache(maxsize=10)
     def outer_radius(self, zmin=None, zmax=None):
         """
         Compute the max radius of the beam at a series of z positions
@@ -415,6 +418,31 @@ class Beam:
         rs = np.stack(rs)
         rmax = rs.T.max(axis=1)
         return (zref, rmax)
+
+    @lru_cache(maxsize=10)
+    def outer_radius_extrema(self, zmin=None, zmax=None):
+        """Returns a list of all local maxima and minima of the outer radius in a given range"""
+        z, r = self.outer_radius(zmin=zmin, zmax=zmax)
+        peaks_arg, dips_arg = _peaks_and_dips_args(z, r)
+        peaks = dict(z=z[peaks_arg], r=r[peaks_arg])
+        dips = dict(z=z[dips_arg], r=r[dips_arg])
+        return peaks, dips
+
+    def outer_radius_closest_max(self, z0):
+        """
+        returns the closest maximum of the outer radius
+        """
+        peaks, _ = self.outer_radius_extrema()
+        arg = np.argmin(np.abs(peaks["z"]-z0))
+        return peaks["z"][arg], peaks["r"][arg]
+
+    def outer_radius_closest_min(self, z0):
+        """
+        returns the closest maximum of the outer radius
+        """
+        _, dips = self.outer_radius_extrema()
+        arg = np.argmin(np.abs(dips["z"]-z0))
+        return dips["z"][arg], dips["r"][arg]
 
     def outer_radius_characteristics(self, zmin=None, zmax=None):
         """
@@ -459,15 +487,14 @@ class Beam:
         figure object
         """
         z, r = self.outer_radius(zmin=zmin, zmax=zmax)
-
-        peaks, dips = _peaks_and_dips_args(z, r)
+        peaks, dips = self.outer_radius_extrema()
 
         if not ax:
             _, ax = plt.subplots()
 
         ax.plot(z, r, "k")
-        ax.plot(z[peaks], r[peaks], 'ro')
-        ax.plot(z[dips], r[dips], 'bo')
+        ax.plot(peaks["z"], peaks["r"], 'ro')
+        ax.plot(dips["z"], dips["r"], 'bo')
         ax.set_xlabel("z")
         ax.set_ylabel("r max")
         return ax.figure
