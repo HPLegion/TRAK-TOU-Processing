@@ -48,7 +48,6 @@ def _read_tou_blockwise(filename, zmin=None, zmax=None):
 
                 # if last line of trajectory block process trajectory information
                 if line_data[0] == -1:
-                    trajectory = trajectory[:-1] # Skip last row (TRAK repeats it with t = -1)
                     df_trajectory = pd.DataFrame(trajectory, columns=_TOU_COLNAMES)
                     yield (df_trajectory, constants)
                     trajectory = list()
@@ -58,7 +57,10 @@ def _parse_trajectory_info(line):
     reads the info from a trajectory header line
     """
     line_data = line.split()
-    particle_id = int(line_data[1])
+    try:
+        particle_id = int(line_data[1])
+    except ValueError:
+        particle_id = -1
     if "Current:" in line_data:
         ind = line_data.index("Current:")
         current = float(line_data[ind + 1])
