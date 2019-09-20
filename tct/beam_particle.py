@@ -147,7 +147,14 @@ class Particle:
         """
         numpy array of phi corrdinate (cylinder coordinates) phi = atan2(y, x) (in deg)
         """
-        return np.rad2deg(np.arctan2(self.y, self.x))
+        return np.rad2deg(self.phi_rad)
+
+    @property
+    def phi_rad(self):
+        """
+        numpy array of phi corrdinate (cylinder coordinates) phi = atan2(y, x) (in rad)
+        """
+        return np.arctan2(self.y, self.x)
 
     @property
     def v_x(self):
@@ -184,6 +191,21 @@ class Particle:
             return self._v_abs.copy()
         else:
             return self._v_abs
+
+    @property
+    def v_r(self):
+        """numpy array of the radial velocity (speed, in m/s)"""
+        return np.gradient(self.r, self.t, edge_order=2)
+
+    @property
+    def v_phi(self):
+        """numpy array of the azimuthal velocity (speed, in deg/s)"""
+        return np.rad2deg(self.v_phi_rad)
+
+    @property
+    def v_phi_rad(self):
+        """numpy array of the azimuthal velocity (speed, in rad/s)"""
+        return np.gradient(np.unwrap(self.phi_rad), self.t, edge_order=2)
 
     @property
     def beta_x(self):

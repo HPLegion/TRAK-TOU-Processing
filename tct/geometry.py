@@ -80,12 +80,12 @@ class Region:
         for seg in self.segments:
             codes.append(MPLPath.MOVETO)
             verts.append((seg["x0"], seg["y0"]))
-            if seg["t"] == "p":
+            if seg["t"] == "P":
                 continue
-            if seg["t"] == "l":
+            if seg["t"] == "L":
                 codes.append(MPLPath.LINETO)
                 verts.append((seg["x1"], seg["y1"]))
-            elif seg["t"] == "a":
+            elif seg["t"] == "A":
                 x0, y0, x1, y1 = seg["x0"], seg["y0"], seg["x1"], seg["y1"]
                 xc, yc = seg["xc"], seg["yc"]
                 r = np.sqrt((x0-xc)**2 + (y0-yc)**2)
