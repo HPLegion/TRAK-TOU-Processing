@@ -2,7 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-df = pd.read_csv("C:\TRAKTEMP\REXGUN_THERMAL\long_anode_xs_5mm\Rex1mm500Gs_36_28_6+0_7mm_long_anode_2019-04-17-17-05-28\Rex1mm500Gs_36_28_6+0_7mm_long_anode_2019-04-17-17-05-28_resultdump.csv")
+# df = pd.read_csv(r"C:\TRAKTEMP\REXGUN_THERMAL\700Gs\Rex1mm700Gs_32_27_23_7_+2_0mm_long_anode_2019-04-30-11-27-06\Rex1mm700Gs_32_27_23_7_+2_0mm_long_anode_2019-04-30-11-27-06_resultdump.csv")
+df = pd.read_csv(r"C:\TRAKTEMP\REXGUN_THERMAL\500Gs\long_anode_xs_5mm\Rex1mm500Gs_36_28_6+0_7mm_long_anode_2019-04-17-17-05-28\Rex1mm500Gs_36_28_6+0_7mm_long_anode_2019-04-17-17-05-28_resultdump.csv")
 
 df.EP_MIN_curden = df.EP_MIN_curden/10000
 df.EP_AVG_curden = df.EP_AVG_curden/10000
@@ -27,7 +28,7 @@ for name, g in p1:
 plt.legend()
 plt.xlabel("E (eV)")
 plt.ylabel("j (A/cm^2)")
-fig.savefig("./cden.pdf")
+fig.savefig("./cden_500Gs.pdf")
 plt.show()
 
 fig = plt.figure()
@@ -37,5 +38,5 @@ plt.legend()
 plt.xlabel("E (eV)")
 plt.ylabel("E + SC (eV)")
 plt.ylim(0, 10000)
-fig.savefig("./scret.pdf")
+fig.savefig("./scret_500Gs.pdf")
 plt.show()

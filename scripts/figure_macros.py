@@ -3,7 +3,7 @@
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-def plot_trajectories(beam, egeo=None, bgeo=None, ax=None, xlim=None, ylim=None, title=None):
+def plot_trajectories(beam, egeo=None, bgeo=None, ax=None, xlim=None, ylim=None, title=None, **kwargs):
     """Plots trajectories of particles in the beam together with geometries if provided"""
     if not ax:
         _, ax = plt.subplots(figsize=(12, 9))
@@ -13,7 +13,7 @@ def plot_trajectories(beam, egeo=None, bgeo=None, ax=None, xlim=None, ylim=None,
     if egeo:
         plot_geometry(egeo, ax=ax, edgecolor="k", facecolor="tab:gray")
 
-    beam.plot_trajectories(ax=ax, lw=".75")
+    beam.plot_trajectories(ax=ax, lw=".75", **kwargs)
 
     if xlim:
         ax.set_xlim(xlim)
