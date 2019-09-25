@@ -53,29 +53,32 @@ for f in tqdm.tqdm(files):
     # plt.close(fig)
 
     ################ Trajecotry with fields Plot
-    fig, ax = plt.subplots(figsize=(12, 9))
-    estatfile = trak.estat.input_file_name[:-3] + "mtx"
-    estatdf_mat = pd.read_csv(estatfile, comment="#", sep=r"\s+", skiprows=[0,1,2,3,5])
-    estatdf_mat.Z = estatdf_mat.Z/1000
-    estatdf_mat.R = estatdf_mat.R/1000
+    # fig, ax = plt.subplots(figsize=(12, 9))
+    # estatfile = trak.estat.input_file_name[:-3] + "mtx"
+    # estatdf_mat = pd.read_csv(estatfile, comment="#", sep=r"\s+", skiprows=[0,1,2,3,5])
+    # estatdf_mat.Z = estatdf_mat.Z/1000
+    # estatdf_mat.R = estatdf_mat.R/1000
 
-    phi_mat_pivot = estatdf_mat[["Z", "R", "Phi"]]
-    phi_mat_pivot = phi_mat_pivot.pivot("Z", "R")
-    phi_mat = scipy.interpolate.RectBivariateSpline(phi_mat_pivot.index.values, phi_mat_pivot.columns.levels[1].values, phi_mat_pivot.values)
+    # phi_mat_pivot = estatdf_mat[["Z", "R", "Phi"]]
+    # phi_mat_pivot = phi_mat_pivot.pivot("Z", "R")
+    # phi_mat = scipy.interpolate.RectBivariateSpline(phi_mat_pivot.index.values, phi_mat_pivot.columns.levels[1].values, phi_mat_pivot.values)
 
-    z_samp = np.linspace(*XLIM, 200)
-    r_samp = np.linspace(*YLIM, 100)
-    zmsh, rmsh = np.meshgrid(z_samp, r_samp)
+    # z_samp = np.linspace(*XLIM, 200)
+    # r_samp = np.linspace(*YLIM, 100)
+    # zmsh, rmsh = np.meshgrid(z_samp, r_samp)
 
-    _cont = ax.contourf(zmsh, rmsh, 1+phi_mat(z_samp, r_samp).T, levels=21, zorder=1, cmap="plasma",
-                        vmin=-10000, vmax=0, extend="both")
-    cbar = fig.colorbar(_cont, ax=ax)
-    cbar.ax.set_ylabel("Potential (V)")
-    # plt.show()
+    # _cont = ax.contourf(zmsh, rmsh, 1+phi_mat(z_samp, r_samp).T, levels=21, zorder=1, cmap="plasma",
+    #                     vmin=-10000, vmax=0, extend="both")
+    # cbar = fig.colorbar(_cont, ax=ax)
+    # cbar.ax.set_ylabel("Potential (V)")
+    # # plt.show()
 
-    trak.plot_trajectories(ax=ax, c="k")
-    fig.gca().set(title=f"{fnamestub} - {beam.current} A", xlim=XLIM, ylim=YLIM)
+    # trak.plot_trajectories(ax=ax, c="k")
+    fig = trak.plot_trajectories(efield={"fill":True})
+    ax = fig.gca()
+    ax.set(title=f"{fnamestub} - {beam.current} A", xlim=XLIM, ylim=YLIM)
     plt.tight_layout()
+
 
     ax2 = ax.twinx()
     # ax2.plot(magdf.Z + bshift, magdf.Bz, "tab:blue", label="B_z on axis")

@@ -3,8 +3,10 @@ This module defines classes wrapping tricomp simulation input and output files
 """
 import os
 import re
+import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from .import_tou import import_tou_as_beam
 from .geometry import Region
@@ -75,6 +77,7 @@ class FieldSim(TricompSim):
         self._shift = shift
         self.dunit = 1.0
         self.mesh = None
+        self._field = None
         super().__init__(input_file)
 
     def _process_input(self):
@@ -121,6 +124,11 @@ class Estat(FieldSim):
                     self.permittivities[line[1]] = line[2]
                 else:
                     self.permittivities[line[1]] = line[2:]
+    @property
+    def field(self):
+        if self._field is None:
+            self._field = EOU(self.output_file)
+        return self._field
 
     def plot_elements(self, ax=None, **kwargs):
         """Plots a list of regions presenting a problem geometry as mpl patches"""
@@ -154,6 +162,12 @@ class Permag(FieldSim):
                     self.permeabilities[line[1]] = line[2]
                 else:
                     self.permeabilities[line[1]] = line[2:]
+    @property
+    def field(self):
+        if self._field is None:
+            raise NotImplementedError
+            # self._field = POU(self.output_file)
+        return self._field
 
     def plot_elements(self, ax=None, **kwargs):
         """Plots a list of regions presenting a problem geometry as mpl patches"""
@@ -212,20 +226,35 @@ class Trak(TricompSim):
             self._beam = import_tou_as_beam(self.output_file)
         return self._beam
 
-    def plot_trajectories(self, ax=None, egeo=True, bgeo=True, **kwargs):
+    def plot_trajectories(self, ax=None, egeo=True, bgeo=True, efield=False, **kwargs):
         """Plots trajectories of particles in the beam together with geometries if provided"""
         if not ax:
             _, ax = plt.subplots(figsize=(12, 9))
 
+        title = kwargs.pop("title", self.output_file_name)
+        xlabel = kwargs.pop("xlabel", "$z$ (m)")
+        ylabel = kwargs.pop("ylabel", "$r$ (m)")
+
+        if efield:
+            if isinstance(efield, dict):
+                self.estat.field.plot_potential_contour(ax=ax, **efield)
+            else:
+                self.estat.field.plot_potential_contour(ax=ax, fill=False)
+
         if bgeo:
-            self.permag.plot_elements(ax=ax, edgecolor="k", facecolor="cornflowerblue")
+            if isinstance(bgeo, dict):
+                self.permag.plot_elements(ax=ax, **bgeo)
+            else:
+                self.permag.plot_elements(ax=ax, edgecolor="k", facecolor="cornflowerblue")
         if egeo:
-            self.estat.plot_elements(ax=ax, edgecolor="k", facecolor="tab:gray")
+            if isinstance(egeo, dict):
+                self.estat.plot_elements(ax=ax, **egeo)
+            else:
+                self.estat.plot_elements(ax=ax, edgecolor="k", facecolor="tab:gray")
 
         self.beam.plot_trajectories(ax=ax, lw=".75", **kwargs)
 
-        ax.set_xlabel("$z$ (m)")
-        ax.set_ylabel("$r$ (m)")
+        ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
         plt.tight_layout()
         return ax.figure
 
@@ -323,3 +352,104 @@ class Mesh(TricompSim):
     def scale(self, val):
         self._scale = val
         self._process_input()
+
+
+class FieldOutput:
+    def __init__(self, output_file):
+        self.output_file = os.path.abspath(output_file)
+        self.file_dir = os.path.dirname(self.output_file)
+        self.output_file_name = os.path.basename(self.output_file).upper()
+        self.run_params = {}
+        # self.region_properties = []
+        # self.region_names = []
+        self.data = None
+        self.elements = None
+        self._parse_output_file(output_file)
+        self._generate_elements_list()
+        self.x, self.y = self.data["X"].values, self.data["Y"].values
+
+    def _parse_output_file(self, output_file):
+        with open(output_file) as f:
+            f.readline() # Skip --- Run parameters --- line
+            # Read Run parameters
+            while True:
+                line = f.readline()
+                if line.strip() == "":
+                    break
+                key, val = line.split(":")
+                val = val.strip()
+                try:
+                    val = int(val)
+                except ValueError:
+                    val = float(val)
+                self.run_params[key.upper()] = val
+
+            f.readline() # Skip --- Nodes --- line
+            n_rows = self.run_params["KMAX"] * self.run_params["LMAX"]
+            names = [x.upper() for x in f.readline().split()]
+            f.readline() # Skip =========== line
+            self.data = pd.read_csv(f, nrows=n_rows, names=names, sep=r"\s+")
+
+            #### These lines have no effect currently, pandas exhausts the file so that the cursor
+            #### position is not useful, since we don't need this info at the moment I don't care
+            # f.readline() # Skip empty line
+
+            # f.readline() # Skip --- Region properties ---
+            # for _ in range(self.run_params["NREG"] + 2):
+            #     print(f.readline())
+            #     self.region_properties.append(f.readline().strip())
+            # f.readline() # Skip empty line
+
+            # f.readline() # Skip --- Region names ---:
+            # for _ in range(self.run_params["NREG"]):
+            #     self.region_names.append(f.readline().strip())
+
+    def _generate_elements_list(self):
+        kmax = self.run_params["KMAX"]
+        lmax = self.run_params["LMAX"]
+        elements = np.zeros((2 * (kmax-1) * lmax, 3))
+        krange = np.arange(1, kmax, dtype=int)
+        elements = np.zeros((2 * (kmax-1) * lmax, 3))
+        for l in range(1, lmax+1):
+            ix = (l-1)*kmax + (krange-1)
+            if l % 2 == 0:
+                data_up = np.column_stack((ix, ix + 1, ix + kmax))
+                data_dn = np.column_stack((ix, ix - kmax, ix + 1))
+            else:
+                data_up = np.column_stack((ix, ix + 1, ix + kmax + 1))
+                data_dn = np.column_stack((ix, ix - kmax + 1, ix + 1))
+            start = 2*(l-1) * (kmax - 1)
+            stop = start+2*(kmax-1)
+            elements[start:stop:2] = data_dn
+            elements[start+1:stop:2] = data_up
+        elements = np.delete(elements, np.s_[-1:-2*(kmax-1):-2], axis=0)
+        elements = np.delete(elements, np.s_[:2*(kmax-1):2], axis=0)
+        self.elements = elements.astype(int)
+
+
+class EOU(FieldOutput):
+    def __init__(self, output_file):
+        super().__init__(output_file)
+        self.data = self.data[["X", "Y", "PHI"]]
+        self.phi = self.data["PHI"]
+
+    def plot_potential_contour(self, ax=None, fill=False, **kwargs):
+        if not ax:
+            fig, ax = plt.subplots(figsize=(12, 9))
+        else:
+            fig = ax.figure
+
+        kwargs.setdefault("cmap", "plasma")
+        kwargs.setdefault("levels", 21)
+        kwargs.setdefault("zorder", 1)
+        kwargs.setdefault("extend", "both")
+        title = kwargs.pop("title", self.output_file_name)
+
+        plotfun = ax.tricontourf if fill else ax.tricontour
+        _cont = plotfun(self.x, self.y, self.elements, self.phi, **kwargs)
+        cbar = fig.colorbar(_cont, ax=ax)
+        cbar.ax.set_ylabel("Potential (V)")
+
+        ax.set(title=title)
+        plt.tight_layout()
+        return fig
