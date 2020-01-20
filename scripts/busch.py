@@ -1,3 +1,6 @@
+#### CAREFUL BROKEN BY REDEFINITION OF V_PHI!!!! Need to rename to omega_phi
+
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt

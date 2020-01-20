@@ -199,12 +199,17 @@ class Particle:
 
     @property
     def v_phi(self):
-        """numpy array of the azimuthal velocity (speed, in deg/s)"""
-        return np.rad2deg(self.v_phi_rad)
+        """numpy array of the radial velocity (speed, in m/s)"""
+        return self.r * self.omega_phi_rad
 
     @property
-    def v_phi_rad(self):
-        """numpy array of the azimuthal velocity (speed, in rad/s)"""
+    def omega_phi(self):
+        """numpy array of the azimuthal angular frequency (speed, in deg/s)"""
+        return np.rad2deg(self.omega_phi_rad)
+
+    @property
+    def omega_phi_rad(self):
+        """numpy array of the azimuthal angular frequency (speed, in rad/s)"""
         return np.gradient(np.unwrap(self.phi_rad), self.t, edge_order=2)
 
     @property
