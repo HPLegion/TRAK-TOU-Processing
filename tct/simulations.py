@@ -3,6 +3,7 @@ This module defines classes wrapping tricomp simulation input and output files
 """
 import os
 import re
+from types import SimpleNamespace
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -187,6 +188,7 @@ class Trak(TricompSim):
     def __init__(self, input_file):
         self.estat = None
         self.permag = None
+        self.emission = None
         self._beam = None
         super().__init__(input_file)
 
@@ -213,6 +215,13 @@ class Trak(TricompSim):
                     bshift = line[2] / dunit
                 elif line[1] == "E":
                     eshift = line[2] / dunit
+
+            elif command == "EMIT":
+                self.emission = SimpleNamespace()
+                try:
+                    self.emission.T_c = line[7]/8.617333e-5 # k_B in eV/K
+                except IndexError:
+                    self.emission.T_c = 0
 
         if efile:
             self.estat = Estat(efile, shift=eshift)
