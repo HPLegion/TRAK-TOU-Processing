@@ -1,6 +1,7 @@
 """
 Contains the class TouParticle
 """
+from functools import lru_cache
 
 import numpy as np
 from scipy.constants import (speed_of_light as C_0,
@@ -10,7 +11,6 @@ from scipy.constants import (speed_of_light as C_0,
                             )
 import matplotlib.pyplot as plt
 # from mpl_toolkits.mplot3d import Axes3D
-from functools import lru_cache
 
 
 class Particle:
@@ -387,15 +387,22 @@ class Beam:
         """Number of trajectories"""
         return len(self.particles)
 
-    def plot_trajectories(self, x="z", y="r", ax=None, nskip=1, **kwargs):
+    def plot_trajectories(self, x="z", y="r", ax=None, p_slice=None, **kwargs):
         """
         Plots two properties of each trajectory at all available timesteps for all trajectories
         """
         if not ax:
             _, ax = plt.subplots()
 
-        for p in self.particles[::nskip]:
+        if p_slice is None:
+            p_slice = np.s_[:]
+
+        if isinstance(p_slice, int):
+            p = self.particles[p_slice]
             ax.plot(getattr(p, x), getattr(p, y), **kwargs)
+        else:
+            for p in self.particles[p_slice]:
+                ax.plot(getattr(p, x), getattr(p, y), **kwargs)
         ax.set_xlabel(x)
         ax.set_ylabel(y)
         return ax.figure

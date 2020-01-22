@@ -235,7 +235,7 @@ class Trak(TricompSim):
             self._beam = import_tou_as_beam(self.output_file)
         return self._beam
 
-    def plot_trajectories(self, ax=None, egeo=True, bgeo=True, efield=False, **kwargs):
+    def plot_trajectories(self, ax=None, p_slice=None, egeo=True, bgeo=True, efield=False, **kwargs):
         """Plots trajectories of particles in the beam together with geometries if provided"""
         if not ax:
             _, ax = plt.subplots(figsize=(12, 9))
@@ -254,14 +254,14 @@ class Trak(TricompSim):
             if isinstance(bgeo, dict):
                 self.permag.plot_elements(ax=ax, **bgeo)
             else:
-                self.permag.plot_elements(ax=ax, edgecolor="k", facecolor="cornflowerblue")
+                self.permag.plot_elements(ax=ax, edgecolor="k", facecolor="tab:blue")
         if egeo:
             if isinstance(egeo, dict):
                 self.estat.plot_elements(ax=ax, **egeo)
             else:
                 self.estat.plot_elements(ax=ax, edgecolor="k", facecolor="tab:gray")
 
-        self.beam.plot_trajectories(ax=ax, lw=".75", **kwargs)
+        self.beam.plot_trajectories(ax=ax, p_slice=p_slice, **kwargs)
 
         ax.set(xlabel=xlabel, ylabel=ylabel, title=title)
         plt.tight_layout()
