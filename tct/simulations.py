@@ -43,6 +43,14 @@ def preparse_input_file(filepath):
             break
     return out
 
+def find_file_case_sensitive(filepath):
+    d = os.path.dirname(filepath)
+    f = os.path.basename(filepath)
+    files = os.listdir(d)
+    files_lower = [fn.lower() for fn in files]
+    fname_lower = f.lower()
+    k = files_lower.index(fname_lower)
+    return os.path.join(d, files[k])
 
 def input_suffix(name, suffix):
     """
@@ -61,10 +69,12 @@ class TricompSim:
     """Base class implementation, handles file names and preprocessing"""
     def __init__(self, input_file):
         self.input_file = os.path.abspath(input_file)
+        self.input_file = find_file_case_sensitive(self.input_file)
         self.file_dir = os.path.dirname(self.input_file)
         self.input_file_name = os.path.basename(self.input_file).upper()
         self.output_file_name = self.input_file_name[:-2] + "OU"
         self.output_file = os.path.join(self.file_dir, self.output_file_name)
+        self.output_file = find_file_case_sensitive(self.output_file)
         self.raw_input = preparse_input_file(self.input_file)
         self._process_input()
 
@@ -366,6 +376,7 @@ class Mesh(TricompSim):
 class FieldOutput:
     def __init__(self, output_file):
         self.output_file = os.path.abspath(output_file)
+        self.output_file = find_file_case_sensitive(self.output_file)
         self.file_dir = os.path.dirname(self.output_file)
         self.output_file_name = os.path.basename(self.output_file).upper()
         self.run_params = {}
