@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
+from scipy.interpolate import LinearNDInterpolator
 
 from .import_tou import import_tou_as_beam
 from .geometry import Region
@@ -452,6 +453,7 @@ class EOU(FieldOutput):
         super().__init__(output_file)
         self.data = self.data[["X", "Y", "PHI"]]
         self.phi = self.data["PHI"]
+        self._interpolator = None
 
     def plot_potential_contour(self, ax=None, fill=False, **kwargs):
         if not ax:
@@ -473,3 +475,8 @@ class EOU(FieldOutput):
         ax.set(title=title)
         plt.tight_layout()
         return fig
+
+    def interpolate_phi(self, x, y):
+        if not self._interpolator:
+            self._interpolator = LinearNDInterpolator(self.data[["X", "Y"]], self.data["PHI"])
+        return self._interpolator(np.vstack((x, y)).T)
