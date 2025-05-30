@@ -75,7 +75,10 @@ class TricompSim:
         self.input_file_name = os.path.basename(self.input_file).upper()
         self.output_file_name = self.input_file_name[:-2] + "OU"
         self.output_file = os.path.join(self.file_dir, self.output_file_name)
-        self.output_file = find_file_case_sensitive(self.output_file)
+        try:
+            self.output_file = find_file_case_sensitive(self.output_file)
+        except ValueError:
+            self.output_file = None
         self.raw_input = preparse_input_file(self.input_file)
         self._process_input()
 
@@ -235,9 +238,15 @@ class Trak(TricompSim):
                     self.emission.T_c = 0
 
         if efile:
-            self.estat = Estat(efile, shift=eshift)
+            try:
+                self.estat = Estat(efile, shift=eshift)
+            except:
+                self.estat = None
         if bfile:
-            self.permag = Permag(bfile, shift=bshift)
+            try:
+                self.permag = Permag(bfile, shift=bshift)
+            except:
+                self.permag = None
 
 
     @property
@@ -261,12 +270,12 @@ class Trak(TricompSim):
             else:
                 self.estat.field.plot_potential_contour(ax=ax, fill=False)
 
-        if bgeo:
+        if bgeo and self.permag:
             if isinstance(bgeo, dict):
                 self.permag.plot_elements(ax=ax, **bgeo)
             else:
                 self.permag.plot_elements(ax=ax, edgecolor="k", facecolor="tab:blue")
-        if egeo:
+        if egeo and self.estat:
             if isinstance(egeo, dict):
                 self.estat.plot_elements(ax=ax, **egeo)
             else:
@@ -287,9 +296,11 @@ class Mesh(TricompSim):
         self.regions = {}
         self.xmesh = None
         self.ymesh = None
-        self.rmesh = None
-        self.zmesh = None
         super().__init__(input_file)
+        self.xmin = self.xmesh[0][0]
+        self.xmax = self.xmesh[-1][1]
+        self.ymin = self.ymesh[0][0]
+        self.ymax = self.ymesh[-1][1]
 
     def _process_input(self):
         lines = self.raw_input[:]
@@ -306,12 +317,16 @@ class Mesh(TricompSim):
                     gline = lines.pop(0)
                     gcommand = gline[0]
                     if gcommand in ["XMESH", "YMESH", "RMESH", "ZMESH"]:
-                        self.__setattr__(gcommand.lower(), [])
+                        if gcommand in ["XMESH", "ZMESH"]:
+                            _field = "xmesh"
+                        else:
+                            _field = "ymesh"
+                        self.__setattr__(_field, [])
                         while True:
                             mline = lines.pop(0)
                             if mline[0] == "END":
                                 break
-                            self.__getattribute__(gcommand.lower()).append(mline)
+                            self.__getattribute__(_field).append(mline)
                     if gcommand == "END":
                         break
 
@@ -372,6 +387,32 @@ class Mesh(TricompSim):
     def scale(self, val):
         self._scale = val
         self._process_input()
+
+    def plot_elements(self, ax=None, slice_=None, mesh_grid=False, suppress=(1,), **kwargs):
+        """Plots a list of regions presenting a problem geometry as mpl patches"""
+        if not ax:
+            _, ax = plt.subplots(figsize=(12, 9))
+        # if not slice_:
+        #     slice_ = slice(1, None)
+        for idx, reg in self.regions.items():
+            if idx in suppress: continue;
+            patch = mpl.patches.PathPatch(reg.to_mpl_path(), **kwargs)
+            ax.add_patch(patch)
+        plt.tight_layout()
+        ax.set(
+            xlim=(self.xmin, self.xmax),
+            ylim=(self.ymin, self.ymax),
+        )
+        if not mesh_grid:
+            ax.grid()
+        else:
+            for s in self.xmesh:
+                ax.vlines(np.arange(s[0], s[1], s[2]), self.ymin, self.ymax)
+                ax.vlines((s[0], s[1]), self.ymin, self.ymax, color="r", lw=0.1)
+            for s in self.ymesh:
+                ax.hlines(np.arange(s[0], s[1], s[2]), self.xmin, self.xmax)
+                ax.hlines((s[0], s[1]), self.xmin, self.xmax, color="r", lw=0.1)
+        return ax.figure
 
 
 class FieldOutput:
