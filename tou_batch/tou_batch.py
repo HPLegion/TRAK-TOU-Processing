@@ -21,7 +21,7 @@ from tct import import_tou_as_particles, Beam
 
 ### temporary task patch-in
 # TODO remove hot patch
-from energyprojection import ep_analysis
+# from energyprojection import ep_analysis
 
 ### Constants
 # Names of dataframe columns
@@ -47,7 +47,16 @@ DF_COLS.append(DF_BEAM_RADIUS_MEAN)
 DF_COLS.append(DF_BEAM_RADIUS_STD)
 DF_COLS.append(DF_BEAM_RADIUS_PERIOD)
 
-
+def find_file_case_sensitive(filepath):
+    d = os.path.dirname(filepath)
+    if d == "":
+        d = "./"
+    f = os.path.basename(filepath)
+    files = os.listdir(d)
+    files_lower = [fn.lower() for fn in files]
+    fname_lower = f.lower()
+    k = files_lower.index(fname_lower)
+    return os.path.join(d, files[k])
 
 def parse_filename(fname, fpref, fposf):
     """Parse the parameters from a filename"""
@@ -117,11 +126,11 @@ def single_file_pipeline(job):
          out[DF_BEAM_RADIUS_PERIOD]) = float("nan"), float("nan"), float("nan"), float("nan")
 
     # TODO remove hot patch
-    try:
-        ep = ep_analysis(beam, fname)
-        out.update(ep)
-    except IndexError:
-        pass
+    # try:
+    #     ep = ep_analysis(beam, fname)
+    #     out.update(ep)
+    # except IndexError:
+    #     pass
     return out
 
 def main():
@@ -270,9 +279,9 @@ def main():
         avail_params = sorted(list(filter(re.compile(r"^p\d+$").match, list(df))),
                               key=lambda x: int(x[1:]))
         # TODO remove hot patch
-        DF_COLS = list(df)
-        for p in avail_params:
-            DF_COLS.remove(p)
+        # DF_COLS = list(df)
+        # for p in avail_params:
+        #     DF_COLS.remove(p)
 
         df = df[avail_params + DF_COLS]
         df = df.sort_values(avail_params)
@@ -311,6 +320,7 @@ def main():
 
         ### get list of relevant files
         fnames = get_files()
+        fnames = [find_file_case_sensitive(filename) for filename in fnames]
 
         ### run computations
         defargs = {"zmin":Config.ZMIN, "zmax":Config.ZMAX,
