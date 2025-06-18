@@ -190,13 +190,10 @@ class Config:
 class ConfigFileManager:
     """Config File Manager
 
-    Is directed at a given working directory where it will look for a
-    config file name tou-batch.cfg
-
-    Directory defaults to current working directory
+    Is directed at a given config file
+    (regardless of whether this file actually exists)
     """
 
-    _CFGFILE = "tou-batch.cfg"  # Not dependent on cfg file
     _G_COMMENT = "#"
     _G_ASSIGN = "="
     _F_FPATH = "path"
@@ -212,10 +209,8 @@ class ConfigFileManager:
         f"{_G_COMMENT} Empty and undefined vars will be assigned defaults if possible\n",
     ]
 
-    def __init__(self, working_dir: str | None = None) -> None:
-        if working_dir is None:
-            working_dir = os.getcwd()
-        self._cfg_file = os.path.abspath(os.path.join(working_dir, self._CFGFILE))
+    def __init__(self, cfg_file: str) -> None:
+        self._cfg_file = cfg_file
 
     @property
     def cfg_file(self) -> str:
@@ -235,13 +230,8 @@ class ConfigFileManager:
             for cfgstr in self._ALL_FIELDS:
                 f.write(cfgstr + self._G_ASSIGN + "\n")
 
-        print("Config file created at:")
-        print(self.cfg_file)
-
-    def copy_to(self, dest: str) -> None:
-        """Copies the config file to the destination"""
-        shutil.copy2(self.cfg_file, dest)
-        _LOG.info("Copied config file to %s", dest)
+        _LOG.info("Config file created at:")
+        _LOG.info(self.cfg_file)
 
     def _readfile(self) -> dict[str, str]:
         """Reads a config file and returns the relevant contents as dict"""
@@ -325,131 +315,131 @@ class ConfigFileManager:
         return cfg
 
 
+def find_matching_tou_files(cfg: Config) -> list[str]:
+    """Acquire all matching TOU filenames"""
+    files = os.listdir(cfg.fpath)
+    files = [f.lower() for f in files]  # TODO: Avoidable?
+    files = [f for f in files if (cfg.FPOSTFIX in f and cfg.fprefix in f)]
+    _LOG.info("Found %d TOU files with matching prefix.", len(files))
+    return files
+
+
+def merge_results(reslist: list) -> pd.DataFrame:
+    """Merges and sorts the data"""
+    df = pd.DataFrame(reslist)
+    avail_params = sorted(
+        list(filter(re.compile(r"^p\d+$").match, list(df))), key=lambda x: int(x[1:])
+    )
+
+    df = df[avail_params + DF_COLS]
+    df = df.sort_values(avail_params)
+    return df
+
+
 def main():
     """MAIN MONSTROSITY"""
     TIMESTAMP = time.strftime("%Y-%m-%d-%H-%M-%S")
     LOGFNAME = "tou_batch_" + TIMESTAMP + ".log"
+    CFG_FILE = os.path.abspath(os.path.join(os.getcwd(), "tou-batch.cfg"))
 
     logfile_handler = configure_logging(LOGFNAME)
 
-    def get_files(cfg: Config):
-        """Acquire all matching TOU filenames"""
-        files = os.listdir(cfg.fpath)
-        files = [f.lower() for f in files]
-        files = [f for f in files if (cfg.FPOSTFIX in f and cfg.fprefix in f)]
-        _LOG.info("Found %d TOU files with matching prefix.", len(files))
-        return files
+    _LOG.info("This is the %s version of this script", __version__)
 
-    def merge_results(reslist):
-        """Merges and sorts the data"""
-        df = pd.DataFrame(reslist)
-        avail_params = sorted(
-            list(filter(re.compile(r"^p\d+$").match, list(df))), key=lambda x: int(x[1:])
-        )
+    cfg_mgr = ConfigFileManager(CFG_FILE)
 
-        df = df[avail_params + DF_COLS]
-        df = df.sort_values(avail_params)
-        return df
-
-    def main_routine():
-        """The main routine, orchestrating the rest"""
-        _LOG.info("This is the %s version of this script", __version__)
-
-        cfg_mgr = ConfigFileManager()
-
-        ### Bail out if no config file found
-        if not cfg_mgr.exists():
-            print("Could not find config file. Attempting to create one...")
-            cfg_mgr.create()
-            print("Please adjust config file and restart.")
-            input("Press enter to exit...")
-            logfile_handler.close()
-            os.remove(LOGFNAME)
-            sys.exit()
-
-        ### Load config and start timing
-        cfg = cfg_mgr.load()
-        t_start = time.time()
-
-        ### get list of relevant files
-        fnames = get_files(cfg)
-        fnames = [find_file_case_sensitive(filename) for filename in fnames]
-
-        ### run computations
-        defargs = {
-            "zmin": cfg.zmin,
-            "zmax": cfg.zmax,
-            "fpref": cfg.fprefix,
-            "fposf": cfg.FPOSTFIX,
-        }
-        jobs = []
-        for fn in fnames:
-            j = {"fpath": os.path.join(cfg.fpath, fn)}
-            j.update(defargs)
-            jobs.append(j)
-
-        log_result = ResultLogger(total_jobs=len(jobs))
-
-        reslist = []
-        with mp.Pool(cfg.processes) as pool:
-            for j in jobs:
-                res = pool.apply_async(
-                    single_file_pipeline,
-                    args=(j,),
-                    callback=log_result,
-                    error_callback=_LOG.error,
-                )
-                reslist.append(res)
-            reslist = [res.get() for res in reslist]
-
-        res_df = merge_results(reslist)
-
-        # archive results and inputs
-        _LOG.info("Finished analysis, time elapsed: %d s.", int(time.time() - t_start))
-        _LOG.info("Starting to save results")
-        save_name = cfg.fprefix_rc + TIMESTAMP
-        res_path = os.path.join(cfg.fpath, save_name)
-        os.mkdir(res_path)
-        _LOG.info("Created output directory at %s", res_path)
-
-        # dump linear result table
-        res_dump_path = os.path.join(res_path, save_name + "_resultdump.csv")
-        res_df.to_csv(res_dump_path, index=False)
-        _LOG.info("Saved result table dump to %s", res_dump_path)
-
-        # create a default pivot task for each max_task that has been evaluated
-        piv_task_list = []
-        for tsk in MAX_TASK_LIST:
-            piv_task_list.append({"values": "max_" + tsk, "index": "p0", "columns": "p1"})
-        piv_task_list.append({"values": DF_BEAM_RADIUS_MEAN, "index": "p0", "columns": "p1"})
-        piv_task_list.append({"values": DF_BEAM_RADIUS_STD, "index": "p0", "columns": "p1"})
-        piv_task_list.append({"values": DF_BEAM_RADIUS_PERIOD, "index": "p0", "columns": "p1"})
-
-        # and execute them
-        for tsk in piv_task_list:
-            try:
-                piv = res_df.pivot(index=tsk["index"], columns=tsk["columns"], values=tsk["values"])
-                name = "_".join([save_name, tsk["index"], tsk["columns"], tsk["values"] + ".csv"])
-                piv_path = os.path.join(res_path, name)
-                piv.to_csv(piv_path)
-                _LOG.info("Saved pivot table %s to %s", str(tsk), piv_path)
-            except Exception as e:
-                _LOG.error("Could not perform pivot task %s", str(tsk))
-                _LOG.error("Intercepted exception, %s", str(e))
-
-        # backup config file
-        cfg_bckp_path = os.path.join(res_path, save_name + ".cfg")
-        cfg_mgr.copy_to(cfg_bckp_path)
-
-        # close and move logfile and shutdown
-        log_path = os.path.join(res_path, save_name + ".log")
-        _LOG.info("Unlinking log file. Will be moved to %s", log_path)
-        logfile_handler.close()
-        shutil.move(LOGFNAME, log_path)
+    ### Bail out if no config file found
+    if not cfg_mgr.exists():
+        _LOG.info("Could not find config file. Attempting to create one...")
+        cfg_mgr.create()
+        _LOG.info("Please adjust config file and restart.")
         input("Press enter to exit...")
+        logfile_handler.close()
+        os.remove(LOGFNAME)
         sys.exit()
 
-    main_routine()
+    ### Load config and start timing
+    cfg = cfg_mgr.load()
+    t_start = time.time()
+
+    ### get list of relevant files
+    fnames = find_matching_tou_files(cfg)
+    fnames = [find_file_case_sensitive(filename) for filename in fnames]
+
+    ### run computations
+    defargs = {
+        "zmin": cfg.zmin,
+        "zmax": cfg.zmax,
+        "fpref": cfg.fprefix,
+        "fposf": cfg.FPOSTFIX,
+    }
+    jobs = []
+    for fn in fnames:
+        j = {"fpath": os.path.join(cfg.fpath, fn)}
+        j.update(defargs)
+        jobs.append(j)
+
+    log_result = ResultLogger(total_jobs=len(jobs))
+
+    reslist = []
+    with mp.Pool(cfg.processes) as pool:
+        for j in jobs:
+            res = pool.apply_async(
+                single_file_pipeline,
+                args=(j,),
+                callback=log_result,
+                error_callback=_LOG.error,
+            )
+            reslist.append(res)
+        reslist = [res.get() for res in reslist]
+
+    res_df = merge_results(reslist)
+
+    # archive results and inputs
+    _LOG.info("Finished analysis, time elapsed: %d s.", int(time.time() - t_start))
+    _LOG.info("Starting to save results")
+    save_name = cfg.fprefix_rc + TIMESTAMP
+    res_path = os.path.join(cfg.fpath, save_name)
+    os.mkdir(res_path)
+    _LOG.info("Created output directory at %s", res_path)
+
+    # dump linear result table
+    res_dump_path = os.path.join(res_path, save_name + "_resultdump.csv")
+    res_df.to_csv(res_dump_path, index=False)
+    _LOG.info("Saved result table dump to %s", res_dump_path)
+
+    # create a default pivot task for each max_task that has been evaluated
+    piv_task_list = []
+    for tsk in MAX_TASK_LIST:
+        piv_task_list.append({"values": "max_" + tsk, "index": "p0", "columns": "p1"})
+    piv_task_list.append({"values": DF_BEAM_RADIUS_MEAN, "index": "p0", "columns": "p1"})
+    piv_task_list.append({"values": DF_BEAM_RADIUS_STD, "index": "p0", "columns": "p1"})
+    piv_task_list.append({"values": DF_BEAM_RADIUS_PERIOD, "index": "p0", "columns": "p1"})
+
+    # and execute them
+    for tsk in piv_task_list:
+        try:
+            piv = res_df.pivot(index=tsk["index"], columns=tsk["columns"], values=tsk["values"])
+            name = "_".join([save_name, tsk["index"], tsk["columns"], tsk["values"] + ".csv"])
+            piv_path = os.path.join(res_path, name)
+            piv.to_csv(piv_path)
+            _LOG.info("Saved pivot table %s to %s", str(tsk), piv_path)
+        except Exception as e:
+            _LOG.error("Could not perform pivot task %s", str(tsk))
+            _LOG.error("Intercepted exception, %s", str(e))
+
+    # backup config file
+    cfg_bckp_path = os.path.join(res_path, save_name + ".cfg")
+    shutil.copy2(cfg_mgr.cfg_file, cfg_bckp_path)
+    _LOG.info("Copied config file to %s", cfg_bckp_path)
+
+    # close and move logfile and shutdown
+    log_path = os.path.join(res_path, save_name + ".log")
+    _LOG.info("Unlinking log file. Will be moved to %s", log_path)
+    logfile_handler.close()
+    shutil.move(LOGFNAME, log_path)
+    input("Press enter to exit...")
+    sys.exit()
 
 
 if __name__ == "__main__":
