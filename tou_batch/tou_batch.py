@@ -13,8 +13,10 @@ import shutil
 import sys
 import time
 from collections import OrderedDict
+from dataclasses import dataclass
 from multiprocessing import RLock
 from typing import TYPE_CHECKING
+from typing import ClassVar
 from typing import TypedDict
 
 import pandas as pd
@@ -171,6 +173,158 @@ def configure_logging(logfile: str) -> logging.FileHandler:
     return file_handler
 
 
+@dataclass(frozen=True)
+class Config:
+    """Config values"""
+
+    fpath: str
+    fprefix_rc: str
+    fprefix: str
+    zmin: float | None
+    zmax: float | None
+    processes: int
+
+    FPOSTFIX: ClassVar[str] = ".tou"  # Not dependent on cfg file
+
+
+class ConfigFileManager:
+    """Config File Manager
+
+    Is directed at a given working directory where it will look for a
+    config file name tou-batch.cfg
+
+    Directory defaults to current working directory
+    """
+
+    _CFGFILE = "tou-batch.cfg"  # Not dependent on cfg file
+    _G_COMMENT = "#"
+    _G_ASSIGN = "="
+    _F_FPATH = "path"
+    _F_FPREFIX = "prefix"
+    _F_ZMIN = "zmin"
+    _F_ZMAX = "zmax"
+    _F_PROC = "processes"
+    _ALL_FIELDS = [_F_FPATH, _F_FPREFIX, _F_ZMIN, _F_ZMAX, _F_PROC]
+    _FILE_HEADER = [
+        f"{_G_COMMENT} Config File for TOU-BATCH\n",
+        f"{_G_COMMENT} Lines starting with {_G_COMMENT} are comments\n",
+        f"{_G_COMMENT} One assignment ({_G_ASSIGN}) per line\n",
+        f"{_G_COMMENT} Empty and undefined vars will be assigned defaults if possible\n",
+    ]
+
+    def __init__(self, working_dir: str | None = None) -> None:
+        if working_dir is None:
+            working_dir = os.getcwd()
+        self._cfg_file = os.path.abspath(os.path.join(working_dir, self._CFGFILE))
+
+    @property
+    def cfg_file(self) -> str:
+        return self._cfg_file
+
+    def exists(self) -> bool:
+        """Check if config file is present"""
+        return os.path.exists(self.cfg_file)
+
+    def create(self) -> None:
+        """Creates a new config file"""
+        if self.exists():
+            raise FileExistsError("Cannot create " + self.cfg_file + "; file already exists.")
+
+        with open(self.cfg_file, "w") as f:
+            f.writelines(self._FILE_HEADER)
+            for cfgstr in self._ALL_FIELDS:
+                f.write(cfgstr + self._G_ASSIGN + "\n")
+
+        print("Config file created at:")
+        print(self.cfg_file)
+
+    def copy_to(self, dest: str) -> None:
+        """Copies the config file to the destination"""
+        shutil.copy2(self.cfg_file, dest)
+        _LOG.info("Copied config file to %s", dest)
+
+    def _readfile(self) -> dict[str, str]:
+        """Reads a config file and returns the relevant contents as dict"""
+        cfg = {}
+        with open(self.cfg_file, "r") as f:
+            for line in f:
+                line = line.strip()
+
+                if line.startswith(self._G_COMMENT) or line == "":
+                    continue
+
+                if any(cfgstr in line for cfgstr in self._ALL_FIELDS):
+                    try:
+                        (key, val) = line.split(self._G_ASSIGN)
+                        key = key.strip()
+                        val = val.strip()
+                        cfg[key] = val
+                    except Exception as e:
+                        _LOG.exception("Error while parsing line: %s", line)
+                        raise e
+                else:
+                    _LOG.error("Unknown config parameter in line: %s", line)
+                    raise ValueError()
+
+        _LOG.info("Read config from file: %s", str(cfg))
+        return cfg
+
+    def load(self) -> Config:
+        """Loads the configuration from file and returns a Config instance"""
+        cfg = self._readfile()
+
+        # path
+        fpath = os.path.abspath(cfg.get(self._F_FPATH, "./") or "./")
+
+        # file prefix
+        fprefix_rc = cfg.get(self._F_FPREFIX, "")
+        fprefix = fprefix_rc.lower()  # lower case file prefix
+
+        # zmin and max
+        _zmin = cfg.get(self._F_ZMIN, "")
+        if _zmin == "":
+            zmin = None
+        else:
+            try:
+                zmin = float(_zmin)
+            except Exception as e:
+                _LOG.exception("Error while trying to cast zmin='%s' to float.", _zmin)
+                raise e
+
+        _zmax = cfg.get(self._F_ZMAX, "")
+        if _zmax == "":
+            zmax = None
+        else:
+            try:
+                zmax = float(_zmax)
+            except Exception as e:
+                _LOG.exception("Error while trying to cast zmax='%s' to float.", _zmax)
+                raise e
+
+        _proc = cfg.get(self._F_PROC, "")
+        if _proc == "":
+            proc = mp.cpu_count()
+        else:
+            try:
+                proc = int(_proc)
+            except Exception as e:
+                _LOG.exception("Error while trying to cast processes='%s' to int.", _proc)
+                raise e
+
+        cfg = Config(
+            fpath=fpath,
+            fprefix_rc=fprefix_rc,
+            fprefix=fprefix,
+            zmin=zmin,
+            zmax=zmax,
+            processes=proc,
+        )
+
+        _LOG.info("Config loaded: %s", cfg)
+
+        return cfg
+
+
 def main():
     """MAIN MONSTROSITY"""
     TIMESTAMP = time.strftime("%Y-%m-%d-%H-%M-%S")
@@ -178,129 +332,11 @@ def main():
 
     logfile_handler = configure_logging(LOGFNAME)
 
-    class Config:
-        """Static class that deals with everything related to the config and settings"""
-
-        CFGFILE = "tou-batch.cfg"  # Not dependent on cfg file
-        FPOSTFIX = ".tou"  # Not dependent on cfg file
-        FPATH = None
-        FPREFIX_RC = None
-        FPREFIX = None
-        ZMIN = None
-        ZMAX = None
-        PROCESSES = None
-        _comment = "#"
-        _assignment = "="
-        _field_fpath = "path"
-        _field_fprefix = "prefix"
-        _field_zmin = "zmin"
-        _field_zmax = "zmax"
-        _field_processes = "processes"
-        _fields = [_field_fpath, _field_fprefix, _field_zmin, _field_zmax, _field_processes]
-        _header = [
-            _comment + " Config File for TOU-BATCH\n",
-            _comment + " Lines starting with " + _comment + " are comments\n",
-            _comment + " One assignment (" + _assignment + ") per line\n",
-            _comment + " Empty and undefined vars will be assigned defaults if possible\n",
-        ]
-
-        @classmethod
-        def exists(cls):
-            """Check if config file is present"""
-            return os.path.exists(cls.CFGFILE)
-
-        @classmethod
-        def create(cls):
-            """Creates a new config file"""
-            if os.path.exists(cls.CFGFILE):
-                raise FileExistsError("Cannot create " + cls.CFGFILE + "; file already exists.")
-            with open(cls.CFGFILE, "w") as f:
-                f.writelines(cls._header)
-                for cfgstr in cls._fields:
-                    f.write(cfgstr + cls._assignment + "\n")
-            print("Config file created at:")
-            print(os.path.abspath(cls.CFGFILE))
-
-        @classmethod
-        def _readfile(cls):
-            """Reads a config file and returns the relevant contents as dict"""
-            cfg = {}
-            with open(cls.CFGFILE, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith(cls._comment) or line == "":
-                        continue
-                    elif any(cfgstr in line for cfgstr in cls._fields):
-                        try:
-                            (key, val) = line.split(cls._assignment)
-                            key = key.strip()
-                            val = val.strip()
-                            cfg[key] = val
-                        except Exception as e:
-                            _LOG.exception("Error while parsing line: %s", line)
-                            raise e
-                    else:
-                        _LOG.error("Unknown config parameter in line: %s", line)
-                        raise ValueError()
-            _LOG.info("Read config from file: %s", str(cfg))
-            return cfg
-
-        @classmethod
-        def initialise(cls):
-            """Initialise the fields of config using the data read from the config file"""
-            cfg = cls._readfile()
-            # path
-            fpath = cfg.get(cls._field_fpath, "")
-            if fpath == "":
-                fpath = "./"
-            cls.FPATH = os.path.abspath(fpath)
-
-            # file prefix
-            cls.FPREFIX_RC = cfg.get(cls._field_fprefix, "")
-            cls.FPREFIX = cls.FPREFIX_RC.lower()  # lower case file prefix
-
-            # zmin and max
-            zmin = cfg.get(cls._field_zmin, "")
-            if zmin == "":
-                cls.ZMIN = None
-            else:
-                try:
-                    cls.ZMIN = float(zmin)
-                except Exception as e:
-                    _LOG.exception("Error while trying to cast zmin='%s' to float.", zmin)
-                    raise e
-            zmax = cfg.get(cls._field_zmax, "")
-            if zmax == "":
-                cls.ZMAX = None
-            else:
-                try:
-                    cls.ZMAX = float(zmax)
-                except Exception as e:
-                    _LOG.exception("Error while trying to cast zmax='%s' to float.", zmax)
-                    raise e
-
-            processes = cfg.get(cls._field_processes, "")
-            if processes == "":
-                cls.PROCESSES = mp.cpu_count()
-            else:
-                try:
-                    cls.PROCESSES = int(processes)
-                except Exception as e:
-                    _LOG.exception("Error while trying to cast processes='%s' to int.", processes)
-                    raise e
-
-            _LOG.info("Set Config.FPATH to %s", cls.FPATH)
-            _LOG.info("Set Config.FPREFIX_RC to %s", cls.FPREFIX_RC)
-            _LOG.info("Set Config.FPREFIX to %s", cls.FPREFIX)
-            _LOG.info("Set Config.ZMIN to %s", str(cls.ZMIN))
-            _LOG.info("Set Config.ZMAX to %s", str(cls.ZMAX))
-            _LOG.info("Set Config.PROCESSES to %s", str(cls.PROCESSES))
-
-    def get_files():
+    def get_files(cfg: Config):
         """Acquire all matching TOU filenames"""
-        files = os.listdir(Config.FPATH)
+        files = os.listdir(cfg.fpath)
         files = [f.lower() for f in files]
-        files = [f for f in files if (Config.FPOSTFIX in f and Config.FPREFIX in f)]
+        files = [f for f in files if (cfg.FPOSTFIX in f and cfg.fprefix in f)]
         _LOG.info("Found %d TOU files with matching prefix.", len(files))
         return files
 
@@ -318,41 +354,44 @@ def main():
     def main_routine():
         """The main routine, orchestrating the rest"""
         _LOG.info("This is the %s version of this script", __version__)
-        ### check if config exists
-        if not Config.exists():
+
+        cfg_mgr = ConfigFileManager()
+
+        ### Bail out if no config file found
+        if not cfg_mgr.exists():
             print("Could not find config file. Attempting to create one...")
-            Config.create()
+            cfg_mgr.create()
             print("Please adjust config file and restart.")
             input("Press enter to exit...")
             logfile_handler.close()
             os.remove(LOGFNAME)
             sys.exit()
 
-        ### set up config values
-        Config.initialise()
+        ### Load config and start timing
+        cfg = cfg_mgr.load()
         t_start = time.time()
 
         ### get list of relevant files
-        fnames = get_files()
+        fnames = get_files(cfg)
         fnames = [find_file_case_sensitive(filename) for filename in fnames]
 
         ### run computations
         defargs = {
-            "zmin": Config.ZMIN,
-            "zmax": Config.ZMAX,
-            "fpref": Config.FPREFIX,
-            "fposf": Config.FPOSTFIX,
+            "zmin": cfg.zmin,
+            "zmax": cfg.zmax,
+            "fpref": cfg.fprefix,
+            "fposf": cfg.FPOSTFIX,
         }
         jobs = []
         for fn in fnames:
-            j = {"fpath": os.path.join(Config.FPATH, fn)}
+            j = {"fpath": os.path.join(cfg.fpath, fn)}
             j.update(defargs)
             jobs.append(j)
 
         log_result = ResultLogger(total_jobs=len(jobs))
 
         reslist = []
-        with mp.Pool(Config.PROCESSES) as pool:
+        with mp.Pool(cfg.processes) as pool:
             for j in jobs:
                 res = pool.apply_async(
                     single_file_pipeline,
@@ -368,8 +407,8 @@ def main():
         # archive results and inputs
         _LOG.info("Finished analysis, time elapsed: %d s.", int(time.time() - t_start))
         _LOG.info("Starting to save results")
-        save_name = Config.FPREFIX_RC + TIMESTAMP
-        res_path = os.path.join(Config.FPATH, save_name)
+        save_name = cfg.fprefix_rc + TIMESTAMP
+        res_path = os.path.join(cfg.fpath, save_name)
         os.mkdir(res_path)
         _LOG.info("Created output directory at %s", res_path)
 
@@ -400,8 +439,7 @@ def main():
 
         # backup config file
         cfg_bckp_path = os.path.join(res_path, save_name + ".cfg")
-        shutil.copy2(Config.CFGFILE, cfg_bckp_path)
-        _LOG.info("Saved config file at %s", cfg_bckp_path)
+        cfg_mgr.copy_to(cfg_bckp_path)
 
         # close and move logfile and shutdown
         log_path = os.path.join(res_path, save_name + ".log")
