@@ -63,6 +63,9 @@ def _stream_particles_from_file(
             # discard separation line
             if "---" in line:
                 continue
+            # Stop importing when hitting empty line (skip end of file blocks)
+            elif line in ("", "\n"):
+                break
             # if new particle read scalar information
             elif "Particle" in line:
                 header = _Header.parse(line)
