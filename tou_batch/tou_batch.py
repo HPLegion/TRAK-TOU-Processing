@@ -31,7 +31,7 @@ if TYPE_CHECKING:
         zmin: float  #: minimum for z range
         zmax: float  #: maximum for z range
         fpref: str  #: filename prefix
-        fprof: str  #: filename postfix
+        fposf: str  #: filename postfix
 
     class PivotArgs(TypedDict):
         values: str
@@ -80,41 +80,20 @@ PIVOT_TABLE_TASKS: list[PivotArgs] = [
 ]
 
 
-def find_file_case_sensitive(filepath: str) -> str:
-    d = os.path.dirname(filepath)
-    if d == "":
-        d = "./"
-    f = os.path.basename(filepath)
-    files = os.listdir(d)
-    files_lower = [fn.lower() for fn in files]
-    fname_lower = f.lower()
-    k = files_lower.index(fname_lower)
-    return os.path.join(d, files[k])
-
-
 _FNAME_VAL_PATTERN = re.compile(r"(-?\d+_?\d*)")
 
 
 def parse_filename(fname: str, fpref: str, fposf: str) -> dict[str, float]:
     """Parse the parameters from a filename"""
     # Strip prefix and postfix
-    fname = fname.replace(fpref, "")
-    fname = fname.replace(fposf, "")
-
-    vals = re.findall(_FNAME_VAL_PATTERN, fname)
-
+    stub = fname.lower().replace(fpref.lower(), "").replace(fposf.lower(), "")
+    vals = re.findall(_FNAME_VAL_PATTERN, stub)
     return {"p" + str(i): float(v.replace("_", ".")) for i, v in enumerate(vals)}
 
 
 def single_file_pipeline(job: JobArgs) -> OrderedDict:
     """
     pipeline for a single file analysis
-    job must be a dict containing:
-    "fpath" = absolute(!) filepath
-    "zmin" = minimum for z range
-    "zmax" = maximum for z range
-    "fpref" = filename prefix
-    "fprof" = filename postfix
 
     returns dict with results
     """
@@ -194,7 +173,6 @@ class Config:
     """Config values"""
 
     fpath: str
-    fprefix_rc: str
     fprefix: str
     zmin: float | None
     zmax: float | None
@@ -283,8 +261,7 @@ class ConfigFileManager:
         fpath = os.path.abspath(cfg.get(self._F_FPATH, "./") or "./")
 
         # file prefix
-        fprefix_rc = cfg.get(self._F_FPREFIX, "")
-        fprefix = fprefix_rc.lower()  # lower case file prefix
+        fprefix = cfg.get(self._F_FPREFIX, "")
 
         # zmin and max
         _zmin = cfg.get(self._F_ZMIN, "")
@@ -319,7 +296,6 @@ class ConfigFileManager:
 
         cfg = Config(
             fpath=fpath,
-            fprefix_rc=fprefix_rc,
             fprefix=fprefix,
             zmin=zmin,
             zmax=zmax,
@@ -333,9 +309,12 @@ class ConfigFileManager:
 
 def find_matching_tou_files(cfg: Config) -> list[str]:
     """Acquire all matching TOU filenames"""
-    files = os.listdir(cfg.fpath)
-    files = [f.lower() for f in files]  # TODO: Avoidable?
-    files = [f for f in files if (cfg.FPOSTFIX in f and cfg.fprefix in f)]
+
+    def matches(fname: str) -> bool:
+        f = fname.lower()
+        return cfg.FPOSTFIX.lower() in f and cfg.fprefix.lower() in f
+
+    files = [f for f in os.listdir(cfg.fpath) if matches(f)]
     _LOG.info("Found %d TOU files with matching prefix.", len(files))
     return files
 
@@ -395,13 +374,12 @@ def main():
 
     ### Load config and start timing
     cfg = cfg_mgr.load()
-    SAVE_NAME = cfg.fprefix_rc + TIMESTAMP
+    SAVE_NAME = cfg.fprefix + TIMESTAMP
     RESULT_DIR = os.path.join(cfg.fpath, SAVE_NAME)
     SAVE_STUB = os.path.join(RESULT_DIR, SAVE_NAME)
 
     ### get list of relevant files and compose joblist
     fnames = find_matching_tou_files(cfg)
-    fnames = [find_file_case_sensitive(filename) for filename in fnames]
     jobs: list[JobArgs] = [
         {
             "fpath": os.path.join(cfg.fpath, fn),
