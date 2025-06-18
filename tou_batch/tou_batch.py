@@ -3,25 +3,35 @@ A script that crawls through a directory full of TOU files conforming to a certa
 and analyses them, there are certain requirements for the format of the file name in order for them
 to be broken into parameters correctly
 """
-__version__ = "2019-04-01 10:00"
+from __future__ import annotations
 
-import os
-import sys
-import re
-import multiprocessing as mp
-import shutil
 import logging
+import multiprocessing as mp
+import os
+import re
+import shutil
+import sys
 import time
 from collections import OrderedDict
+from typing import TYPE_CHECKING
+from typing import TypedDict
+
 import pandas as pd
 
-# import import_tou
-# from tou_particle import TouBeam
-from tct import import_tou_as_particles, Beam
+from tct import Beam
+from tct import import_tou_as_particles
 
-### temporary task patch-in
-# TODO remove hot patch
-# from energyprojection import ep_analysis
+if TYPE_CHECKING:
+
+    class JobArgs(TypedDict):
+        fpath: str  #: absolute(!) filepath
+        zmin: float  #: minimum for z range
+        zmax: float  #: maximum for z range
+        fpref: str  #: filename prefix
+        fprof: str  #: filename postfix
+
+
+__version__ = "2019-04-01 10:00"
 
 ### Constants
 # Names of dataframe columns
@@ -34,10 +44,12 @@ DF_BEAM_RADIUS_STD = "beam_radius_std"
 DF_BEAM_RADIUS_PERIOD = "beam_radius_period"
 # the following lists contains the names of the methods of the trajectory objects that we want to
 # evaluate and find the maximum of within each file
-MAX_TASK_LIST = ["max_ang_with_z",
-                 "max_kin_energy_trans",
-                 "mean_ang_with_z",
-                 "mean_kin_energy_trans"]
+MAX_TASK_LIST = [
+    "max_ang_with_z",
+    "max_kin_energy_trans",
+    "mean_ang_with_z",
+    "mean_kin_energy_trans",
+]
 DF_COLS = [DF_FNAME, DF_NTR, DF_NTR_LOST]
 for taskname in MAX_TASK_LIST:
     DF_COLS.append("max_" + taskname + "_z0")
@@ -47,7 +59,8 @@ DF_COLS.append(DF_BEAM_RADIUS_MEAN)
 DF_COLS.append(DF_BEAM_RADIUS_STD)
 DF_COLS.append(DF_BEAM_RADIUS_PERIOD)
 
-def find_file_case_sensitive(filepath):
+
+def find_file_case_sensitive(filepath: str) -> str:
     d = os.path.dirname(filepath)
     if d == "":
         d = "./"
@@ -58,28 +71,22 @@ def find_file_case_sensitive(filepath):
     k = files_lower.index(fname_lower)
     return os.path.join(d, files[k])
 
-def parse_filename(fname, fpref, fposf):
+
+_val_pattern = re.compile(r"(-?\d+_?\d*)")
+
+
+def parse_filename(fname: str, fpref: str, fposf: str) -> dict[str, float]:
     """Parse the parameters from a filename"""
     # Strip prefix and postfix
     fname = fname.replace(fpref, "")
     fname = fname.replace(fposf, "")
 
-    pattern = r"(-?\d+_?\d*)"
-    vals = re.findall(pattern, fname)
-    param = {}
-    for i, v in enumerate(vals):
-        param["p"+str(i)] = float(v.replace("_", "."))
-    # # remove all remaining alphabetic characters
-    # for c in "ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz":
-    #     fname = fname.replace(c, "")
-    # # Assemble values and return as list
-    # values = fname.split("_")
-    # param = {}
-    # for i in range(len(values)//2):
-    #     param["p"+str(i)] = float(values[2*i] + "." + values[2*i+1])
-    return param
+    vals = re.findall(_val_pattern, fname)
 
-def single_file_pipeline(job):
+    return {"p" + str(i): float(v.replace("_", ".")) for i, v in enumerate(vals)}
+
+
+def single_file_pipeline(job: JobArgs) -> OrderedDict:
     """
     pipeline for a single file analysis
     job must be a dict containing:
@@ -91,7 +98,6 @@ def single_file_pipeline(job):
 
     returns dict with results
     """
-
     out = OrderedDict()
     fname = os.path.split(job["fpath"])[1]
     out[DF_FNAME] = fname
@@ -113,25 +119,22 @@ def single_file_pipeline(job):
         out["max_" + tsk + "_z0"] = z0
         out["max_" + tsk] = res
 
-    beam = Beam(trajs)
     try:
-        (out[DF_BEAM_RADIUS_Z0],
-         out[DF_BEAM_RADIUS_MEAN],
-         out[DF_BEAM_RADIUS_STD],
-         out[DF_BEAM_RADIUS_PERIOD]) = beam.outer_radius_characteristics()
+        beam = Beam(trajs)
+        (
+            out[DF_BEAM_RADIUS_Z0],
+            out[DF_BEAM_RADIUS_MEAN],
+            out[DF_BEAM_RADIUS_STD],
+            out[DF_BEAM_RADIUS_PERIOD],
+        ) = beam.outer_radius_characteristics()
     except IndexError:
-        (out[DF_BEAM_RADIUS_Z0],
-         out[DF_BEAM_RADIUS_MEAN],
-         out[DF_BEAM_RADIUS_STD],
-         out[DF_BEAM_RADIUS_PERIOD]) = float("nan"), float("nan"), float("nan"), float("nan")
+        out[DF_BEAM_RADIUS_Z0] = float("nan")
+        out[DF_BEAM_RADIUS_MEAN] = float("nan")
+        out[DF_BEAM_RADIUS_STD] = float("nan")
+        out[DF_BEAM_RADIUS_PERIOD] = float("nan")
 
-    # TODO remove hot patch
-    # try:
-    #     ep = ep_analysis(beam, fname)
-    #     out.update(ep)
-    # except IndexError:
-    #     pass
     return out
+
 
 def main():
     """MAIN MONSTROSITY"""
@@ -147,13 +150,15 @@ def main():
 
     class Progress:
         """Simple static class for keeping track of the progress"""
+
         total = 0
         current = 0
 
     class Config:
         """Static class that deals with everything related to the config and settings"""
-        CFGFILE = "tou-batch.cfg" # Not dependent on cfg file
-        FPOSTFIX = ".tou" # Not dependent on cfg file
+
+        CFGFILE = "tou-batch.cfg"  # Not dependent on cfg file
+        FPOSTFIX = ".tou"  # Not dependent on cfg file
         FPATH = None
         FPREFIX_RC = None
         FPREFIX = None
@@ -168,10 +173,12 @@ def main():
         _field_zmax = "zmax"
         _field_processes = "processes"
         _fields = [_field_fpath, _field_fprefix, _field_zmin, _field_zmax, _field_processes]
-        _header = [_comment + " Config File for TOU-BATCH\n",
-                   _comment + " Lines starting with " + _comment + " are comments\n",
-                   _comment + " One assignment (" + _assignment + ") per line\n",
-                   _comment + " Empty and undefined vars will be assigned defaults if possible\n"]
+        _header = [
+            _comment + " Config File for TOU-BATCH\n",
+            _comment + " Lines starting with " + _comment + " are comments\n",
+            _comment + " One assignment (" + _assignment + ") per line\n",
+            _comment + " Empty and undefined vars will be assigned defaults if possible\n",
+        ]
 
         @classmethod
         def exists(cls):
@@ -226,7 +233,7 @@ def main():
 
             # file prefix
             cls.FPREFIX_RC = cfg.get(cls._field_fprefix, "")
-            cls.FPREFIX = cls.FPREFIX_RC.lower() # lower case file prefix
+            cls.FPREFIX = cls.FPREFIX_RC.lower()  # lower case file prefix
 
             # zmin and max
             zmin = cfg.get(cls._field_zmin, "")
@@ -276,12 +283,9 @@ def main():
     def merge_results(reslist):
         """Merges and sorts the data"""
         df = pd.DataFrame(reslist)
-        avail_params = sorted(list(filter(re.compile(r"^p\d+$").match, list(df))),
-                              key=lambda x: int(x[1:]))
-        # TODO remove hot patch
-        # DF_COLS = list(df)
-        # for p in avail_params:
-        #     DF_COLS.remove(p)
+        avail_params = sorted(
+            list(filter(re.compile(r"^p\d+$").match, list(df))), key=lambda x: int(x[1:])
+        )
 
         df = df[avail_params + DF_COLS]
         df = df.sort_values(avail_params)
@@ -323,11 +327,15 @@ def main():
         fnames = [find_file_case_sensitive(filename) for filename in fnames]
 
         ### run computations
-        defargs = {"zmin":Config.ZMIN, "zmax":Config.ZMAX,
-                   "fpref":Config.FPREFIX, "fposf":Config.FPOSTFIX}
+        defargs = {
+            "zmin": Config.ZMIN,
+            "zmax": Config.ZMAX,
+            "fpref": Config.FPREFIX,
+            "fposf": Config.FPOSTFIX,
+        }
         jobs = []
         for fn in fnames:
-            j = {"fpath":os.path.join(Config.FPATH, fn)}
+            j = {"fpath": os.path.join(Config.FPATH, fn)}
             j.update(defargs)
             jobs.append(j)
 
@@ -336,15 +344,19 @@ def main():
         reslist = []
         with mp.Pool(Config.PROCESSES) as pool:
             for j in jobs:
-                res = pool.apply_async(single_file_pipeline, args=(j,),
-                                       callback=log_results, error_callback=logger.info)
+                res = pool.apply_async(
+                    single_file_pipeline,
+                    args=(j,),
+                    callback=log_results,
+                    error_callback=logger.info,
+                )
                 reslist.append(res)
             reslist = [res.get() for res in reslist]
 
         res_df = merge_results(reslist)
 
         # archive results and inputs
-        logger.info("Finished analysis, time elapsed: %d s.", int(time.time()-t_start))
+        logger.info("Finished analysis, time elapsed: %d s.", int(time.time() - t_start))
         logger.info("Starting to save results")
         save_name = Config.FPREFIX_RC + TIMESTAMP
         res_path = os.path.join(Config.FPATH, save_name)
@@ -359,10 +371,10 @@ def main():
         # create a default pivot task for each max_task that has been evaluated
         piv_task_list = []
         for tsk in MAX_TASK_LIST:
-            piv_task_list.append({"values":"max_" + tsk, "index":"p0", "columns":"p1"})
-        piv_task_list.append({"values":DF_BEAM_RADIUS_MEAN, "index":"p0", "columns":"p1"})
-        piv_task_list.append({"values":DF_BEAM_RADIUS_STD, "index":"p0", "columns":"p1"})
-        piv_task_list.append({"values":DF_BEAM_RADIUS_PERIOD, "index":"p0", "columns":"p1"})
+            piv_task_list.append({"values": "max_" + tsk, "index": "p0", "columns": "p1"})
+        piv_task_list.append({"values": DF_BEAM_RADIUS_MEAN, "index": "p0", "columns": "p1"})
+        piv_task_list.append({"values": DF_BEAM_RADIUS_STD, "index": "p0", "columns": "p1"})
+        piv_task_list.append({"values": DF_BEAM_RADIUS_PERIOD, "index": "p0", "columns": "p1"})
 
         # and execute them
         for tsk in piv_task_list:
@@ -390,6 +402,7 @@ def main():
         sys.exit()
 
     main_routine()
+
 
 if __name__ == "__main__":
     main()
