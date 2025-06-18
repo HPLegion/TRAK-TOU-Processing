@@ -210,9 +210,7 @@ class Particle:
         """Angle between velocity vector and Z axis (deg)"""
         return np.rad2deg(self.ang_with_z_rad)
 
-    def _range_mask(
-        self, zmin: float | None = None, zmax: float | None = None
-    ) -> np.ndarray:
+    def _range_mask(self, zmin: float | None = None, zmax: float | None = None) -> np.ndarray:
         """Mask for a given z range"""
         if not zmin:  # TODO: CHECK FOR NONE
             zmin = np.amin(self.z)

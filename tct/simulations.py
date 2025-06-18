@@ -1,17 +1,21 @@
 """
 This module defines classes wrapping tricomp simulation input and output files
 """
+from __future__ import annotations
+
 import os
 import re
 from types import SimpleNamespace
-import numpy as np
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from scipy.interpolate import LinearNDInterpolator
 
-from .import_tou import import_tou_as_beam
 from .geometry import Region
+from .import_tou import import_tou_as_beam
+
 
 def preparse_input_file(filepath):
     """
@@ -27,10 +31,10 @@ def preparse_input_file(filepath):
     out = []
     for line in lines:
         line = line.strip("\n ,\t:()=")
-        if line == "" or line.startswith(r"*"): #Skip empty lines and comments
+        if line == "" or line.startswith(r"*"):  # Skip empty lines and comments
             continue
         fields = re.split(r"[\s,\t:\(\)=]+", line)
-        for i, field in enumerate(fields): # Try to cast to numbers
+        for i, field in enumerate(fields):  # Try to cast to numbers
             try:
                 field = int(field)
             except ValueError:
@@ -44,6 +48,7 @@ def preparse_input_file(filepath):
             break
     return out
 
+
 def find_file_case_sensitive(filepath):
     d = os.path.dirname(filepath)
     f = os.path.basename(filepath)
@@ -52,6 +57,7 @@ def find_file_case_sensitive(filepath):
     fname_lower = f.lower()
     k = files_lower.index(fname_lower)
     return os.path.join(d, files[k])
+
 
 def input_suffix(name, suffix):
     """
@@ -68,6 +74,7 @@ def input_suffix(name, suffix):
 
 class TricompSim:
     """Base class implementation, handles file names and preprocessing"""
+
     def __init__(self, input_file):
         self.input_file = os.path.abspath(input_file)
         self.input_file = find_file_case_sensitive(self.input_file)
@@ -88,6 +95,7 @@ class TricompSim:
 
 class FieldSim(TricompSim):
     """Base class implementation, for Estat and Permag"""
+
     def __init__(self, input_file, shift=0.0):
         self._shift = shift
         self.dunit = 1.0
@@ -107,11 +115,12 @@ class FieldSim(TricompSim):
 
             elif command == "DUNIT":
                 self.dunit = line[1]
-        self.mesh = Mesh(mfile, shift=self.shift, scale=1/self.dunit)
+        self.mesh = Mesh(mfile, shift=self.shift, scale=1 / self.dunit)
 
     @property
     def shift(self):
         return self._shift
+
     @shift.setter
     def shift(self, val):
         self._shift = val
@@ -121,6 +130,7 @@ class FieldSim(TricompSim):
 
 class Estat(FieldSim):
     """Estat simulations"""
+
     def __init__(self, input_file, shift=0.0):
         self.potentials = {}
         self.permittivities = {}
@@ -139,6 +149,7 @@ class Estat(FieldSim):
                     self.permittivities[line[1]] = line[2]
                 else:
                     self.permittivities[line[1]] = line[2:]
+
     @property
     def field(self):
         if self._field is None:
@@ -159,6 +170,7 @@ class Estat(FieldSim):
 
 class Permag(FieldSim):
     """Permag simulations"""
+
     def __init__(self, input_file, shift=0.0):
         self.currents = {}
         self.permeabilities = {}
@@ -177,6 +189,7 @@ class Permag(FieldSim):
                     self.permeabilities[line[1]] = line[2]
                 else:
                     self.permeabilities[line[1]] = line[2:]
+
     @property
     def field(self):
         if self._field is None:
@@ -199,6 +212,7 @@ class Permag(FieldSim):
 
 class Trak(TricompSim):
     """Trak simulations"""
+
     def __init__(self, input_file):
         self.estat = None
         self.permag = None
@@ -233,7 +247,7 @@ class Trak(TricompSim):
             elif command == "EMIT":
                 self.emission = SimpleNamespace()
                 try:
-                    self.emission.T_c = line[7]/8.617333e-5 # k_B in eV/K
+                    self.emission.T_c = line[7] / 8.617333e-5  # k_B in eV/K
                 except IndexError:
                     self.emission.T_c = 0
 
@@ -248,14 +262,15 @@ class Trak(TricompSim):
             except:
                 self.permag = None
 
-
     @property
     def beam(self):
         if self._beam is None:
             self._beam = import_tou_as_beam(self.output_file)
         return self._beam
 
-    def plot_trajectories(self, ax=None, p_slice=None, egeo=True, bgeo=True, efield=False, **kwargs):
+    def plot_trajectories(
+        self, ax=None, p_slice=None, egeo=True, bgeo=True, efield=False, **kwargs
+    ):
         """Plots trajectories of particles in the beam together with geometries if provided"""
         if not ax:
             _, ax = plt.subplots(figsize=(12, 9))
@@ -290,6 +305,7 @@ class Trak(TricompSim):
 
 class Mesh(TricompSim):
     """Meshing tool"""
+
     def __init__(self, input_file, shift=0.0, scale=1.0):
         self._shift = shift
         self._scale = scale
@@ -330,7 +346,7 @@ class Mesh(TricompSim):
                     if gcommand == "END":
                         break
 
-            elif command == "REGION": #read region
+            elif command == "REGION":  # read region
                 if "FILL" in line:
                     fill = True
                     line.remove("FILL")
@@ -351,21 +367,26 @@ class Mesh(TricompSim):
                         break
 
                     if rcommand == "P":
-                        s = dict(t="P", x0=scale*rline[1]+shift, y0=scale*rline[2])
+                        s = dict(t="P", x0=scale * rline[1] + shift, y0=scale * rline[2])
 
                     elif rcommand == "L":
                         s = dict(
                             t="L",
-                            x0=scale*rline[1]+shift, y0=scale*rline[2],
-                            x1=scale*rline[3]+shift, y1=scale*rline[4]
+                            x0=scale * rline[1] + shift,
+                            y0=scale * rline[2],
+                            x1=scale * rline[3] + shift,
+                            y1=scale * rline[4],
                         )
 
                     elif rcommand == "A":
                         s = dict(
                             t="A",
-                            x0=scale*rline[1]+shift, y0=scale*rline[2],
-                            x1=scale*rline[3]+shift, y1=scale*rline[4],
-                            xc=scale*rline[5]+shift, yc=scale*rline[6]
+                            x0=scale * rline[1] + shift,
+                            y0=scale * rline[2],
+                            x1=scale * rline[3] + shift,
+                            y1=scale * rline[4],
+                            xc=scale * rline[5] + shift,
+                            yc=scale * rline[6],
                         )
                     segments.append(s)
 
@@ -375,6 +396,7 @@ class Mesh(TricompSim):
     @property
     def shift(self):
         return self._shift
+
     @shift.setter
     def shift(self, val):
         self._shift = val
@@ -383,6 +405,7 @@ class Mesh(TricompSim):
     @property
     def scale(self):
         return self._scale
+
     @scale.setter
     def scale(self, val):
         self._scale = val
@@ -395,7 +418,8 @@ class Mesh(TricompSim):
         # if not slice_:
         #     slice_ = slice(1, None)
         for idx, reg in self.regions.items():
-            if idx in suppress: continue;
+            if idx in suppress:
+                continue
             patch = mpl.patches.PathPatch(reg.to_mpl_path(), **kwargs)
             ax.add_patch(patch)
         plt.tight_layout()
@@ -432,7 +456,7 @@ class FieldOutput:
 
     def _parse_output_file(self, output_file):
         with open(output_file) as f:
-            f.readline() # Skip --- Run parameters --- line
+            f.readline()  # Skip --- Run parameters --- line
             # Read Run parameters
             while True:
                 line = f.readline()
@@ -446,10 +470,10 @@ class FieldOutput:
                     val = float(val)
                 self.run_params[key.upper()] = val
 
-            f.readline() # Skip --- Nodes --- line
+            f.readline()  # Skip --- Nodes --- line
             n_rows = self.run_params["KMAX"] * self.run_params["LMAX"]
             names = [x.upper() for x in f.readline().split()]
-            f.readline() # Skip =========== line
+            f.readline()  # Skip =========== line
             self.data = pd.read_csv(f, nrows=n_rows, names=names, sep=r"\s+")
 
             #### These lines have no effect currently, pandas exhausts the file so that the cursor
@@ -469,23 +493,23 @@ class FieldOutput:
     def _generate_elements_list(self):
         kmax = self.run_params["KMAX"]
         lmax = self.run_params["LMAX"]
-        elements = np.zeros((2 * (kmax-1) * lmax, 3))
+        elements = np.zeros((2 * (kmax - 1) * lmax, 3))
         krange = np.arange(1, kmax, dtype=int)
-        elements = np.zeros((2 * (kmax-1) * lmax, 3))
-        for l in range(1, lmax+1):
-            ix = (l-1)*kmax + (krange-1)
+        elements = np.zeros((2 * (kmax - 1) * lmax, 3))
+        for l in range(1, lmax + 1):
+            ix = (l - 1) * kmax + (krange - 1)
             if l % 2 == 0:
                 data_up = np.column_stack((ix, ix + 1, ix + kmax))
                 data_dn = np.column_stack((ix, ix - kmax, ix + 1))
             else:
                 data_up = np.column_stack((ix, ix + 1, ix + kmax + 1))
                 data_dn = np.column_stack((ix, ix - kmax + 1, ix + 1))
-            start = 2*(l-1) * (kmax - 1)
-            stop = start+2*(kmax-1)
+            start = 2 * (l - 1) * (kmax - 1)
+            stop = start + 2 * (kmax - 1)
             elements[start:stop:2] = data_dn
-            elements[start+1:stop:2] = data_up
-        elements = np.delete(elements, np.s_[-1:-2*(kmax-1):-2], axis=0)
-        elements = np.delete(elements, np.s_[:2*(kmax-1):2], axis=0)
+            elements[start + 1 : stop : 2] = data_up
+        elements = np.delete(elements, np.s_[-1 : -2 * (kmax - 1) : -2], axis=0)
+        elements = np.delete(elements, np.s_[: 2 * (kmax - 1) : 2], axis=0)
         self.elements = elements.astype(int)
 
 

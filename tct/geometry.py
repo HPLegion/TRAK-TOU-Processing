@@ -2,8 +2,11 @@
 Module for stuff related to Mesh Geometries mostly for plotting
 """
 
-from matplotlib.path import Path as MPLPath
+from __future__ import annotations
+
 import numpy as np
+from matplotlib.path import Path as MPLPath
+
 
 class Region:
     """
@@ -15,7 +18,6 @@ class Region:
         self.name = name
         self.fill = fill
         self.segments = segments
-
 
     def to_svg_path(self):
         """
@@ -43,11 +45,12 @@ class Region:
 
         ## Convert the matplotlib path into a svg path
         mpl_to_svg_codes = {
-            MPLPath.MOVETO:"M",
-            MPLPath.LINETO:"L",
-            MPLPath.CURVE3:"Q",
-            MPLPath.CURVE4:"C",
-            MPLPath.CLOSEPOLY:"Z"}
+            MPLPath.MOVETO: "M",
+            MPLPath.LINETO: "L",
+            MPLPath.CURVE3: "Q",
+            MPLPath.CURVE4: "C",
+            MPLPath.CLOSEPOLY: "Z",
+        }
 
         path = self.to_mpl_path()
         codes = path.codes
@@ -58,7 +61,7 @@ class Region:
         while True:
             c = codes[i]
             n_vert = MPLPath.NUM_VERTICES_FOR_CODE[c]
-            verts = vertices[i:i+n_vert]
+            verts = vertices[i : i + n_vert]
 
             svg.append(mpl_to_svg_codes[c])
             if c != MPLPath.CLOSEPOLY:
@@ -69,7 +72,6 @@ class Region:
             if i >= len(codes):
                 break
         return " ".join(svg)
-
 
     def to_mpl_path(self):
         """
@@ -88,9 +90,9 @@ class Region:
             elif seg["t"] == "A":
                 x0, y0, x1, y1 = seg["x0"], seg["y0"], seg["x1"], seg["y1"]
                 xc, yc = seg["xc"], seg["yc"]
-                r = np.sqrt((x0-xc)**2 + (y0-yc)**2)
-                t0 = np.arctan2((y0-yc), (x0-xc))
-                t1 = np.arctan2((y1-yc), (x1-xc))
+                r = np.sqrt((x0 - xc) ** 2 + (y0 - yc) ** 2)
+                t0 = np.arctan2((y0 - yc), (x0 - xc))
+                t1 = np.arctan2((y1 - yc), (x1 - xc))
                 t0 = np.rad2deg(t0)
                 t1 = np.rad2deg(t1)
                 if t0 < 0:
@@ -122,7 +124,6 @@ class Region:
             codes.insert(0, c0)
 
         return MPLPath(verts, codes)
-
 
     def __str__(self):
         s1 = f"Region: {self.name}, Fill = {self.fill}\n"
