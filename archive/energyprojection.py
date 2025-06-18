@@ -1,14 +1,24 @@
+"""
+I no longer remember what this does or was used for
+But at some point the ep_analysis function was called from tou_batch,
+this was probably an experiment that I did at some point
+
+/HP
+"""
+
+from __future__ import annotations
+
 import os
-import pandas as pd
-import numpy as np
-import scipy.interpolate
-from scipy.constants import (
-    pi as PI,
-    electron_mass as M_E,
-    epsilon_0 as EPS_0,
-    elementary_charge as Q_E
-)
 from collections import OrderedDict
+
+import numpy as np
+import pandas as pd
+import scipy.interpolate
+from scipy.constants import electron_mass as M_E
+from scipy.constants import elementary_charge as Q_E
+from scipy.constants import epsilon_0 as EPS_0
+from scipy.constants import pi as PI
+
 from tct import import_tou_as_beam
 
 ### Constants
@@ -69,7 +79,7 @@ def ep_analysis(beam, fname):
         kp = case["keypref"]
         res[kp + "z"] = z
         res[kp + "bs"] = bs
-        
+
         res[kp + "curden"] = cur / PI / bs / bs
 
         e = [np.interp(z, p.z, p.kin_energy) for p in par]
@@ -103,5 +113,5 @@ def ep_analysis(beam, fname):
             res[kp + "problem"] = True
         else:
             res[kp + "problem"] = False
-    
+
     return res
