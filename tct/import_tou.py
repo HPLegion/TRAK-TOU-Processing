@@ -9,7 +9,7 @@ from typing import Generator
 
 import numpy as np
 
-from .beam_particle import Beam
+from .beam import Beam
 from .particle import Particle
 
 
