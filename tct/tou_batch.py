@@ -39,7 +39,7 @@ if TYPE_CHECKING:
         columns: str
 
 
-__version__ = "2019-04-01 10:00"
+__version__ = "2020-06-19 01:45"
 _LOG = logging.getLogger(__name__)
 
 ### Constants
