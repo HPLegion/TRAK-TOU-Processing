@@ -33,6 +33,11 @@ if TYPE_CHECKING:
         fpref: str  #: filename prefix
         fprof: str  #: filename postfix
 
+    class PivotArgs(TypedDict):
+        values: str
+        index: str
+        columns: str
+
 
 __version__ = "2019-04-01 10:00"
 _LOG = logging.getLogger(__name__)
@@ -46,6 +51,7 @@ DF_BEAM_RADIUS_Z0 = "beam_radius_z0"
 DF_BEAM_RADIUS_MEAN = "beam_radius_mean"
 DF_BEAM_RADIUS_STD = "beam_radius_std"
 DF_BEAM_RADIUS_PERIOD = "beam_radius_period"
+
 # the following lists contains the names of the methods of the trajectory objects that we want to
 # evaluate and find the maximum of within each file
 MAX_TASK_LIST = [
@@ -54,6 +60,7 @@ MAX_TASK_LIST = [
     "mean_ang_with_z",
     "mean_kin_energy_trans",
 ]
+
 DF_COLS = [DF_FNAME, DF_NTR, DF_NTR_LOST]
 for taskname in MAX_TASK_LIST:
     DF_COLS.append("max_" + taskname + "_z0")
@@ -62,6 +69,15 @@ DF_COLS.append(DF_BEAM_RADIUS_Z0)
 DF_COLS.append(DF_BEAM_RADIUS_MEAN)
 DF_COLS.append(DF_BEAM_RADIUS_STD)
 DF_COLS.append(DF_BEAM_RADIUS_PERIOD)
+
+# create a default pivot task for each max_task that has been evaluated
+PIVOT_TABLE_TASKS: list[PivotArgs] = [
+    {"values": "max_" + t, "index": "p0", "columns": "p1"} for t in MAX_TASK_LIST
+] + [
+    {"values": DF_BEAM_RADIUS_MEAN, "index": "p0", "columns": "p1"},
+    {"values": DF_BEAM_RADIUS_STD, "index": "p0", "columns": "p1"},
+    {"values": DF_BEAM_RADIUS_PERIOD, "index": "p0", "columns": "p1"},
+]
 
 
 def find_file_case_sensitive(filepath: str) -> str:
@@ -324,7 +340,7 @@ def find_matching_tou_files(cfg: Config) -> list[str]:
     return files
 
 
-def merge_results(reslist: list) -> pd.DataFrame:
+def merge_results(reslist: list[OrderedDict]) -> pd.DataFrame:
     """Merges and sorts the data"""
     df = pd.DataFrame(reslist)
     avail_params = sorted(
@@ -334,6 +350,25 @@ def merge_results(reslist: list) -> pd.DataFrame:
     df = df[avail_params + DF_COLS]
     df = df.sort_values(avail_params)
     return df
+
+
+def run_jobs_multiproc(jobs: list[JobArgs], proc: int) -> list[OrderedDict]:
+    result_logger = ResultLogger(total_jobs=len(jobs))
+
+    with mp.Pool(proc) as pool:
+        apply_results = [
+            pool.apply_async(
+                single_file_pipeline,
+                args=(j,),
+                callback=result_logger,
+                error_callback=_LOG.error,
+            )
+            for j in jobs
+        ]
+
+        results = [res.get() for res in apply_results]
+
+    return results
 
 
 def main():
@@ -360,84 +395,63 @@ def main():
 
     ### Load config and start timing
     cfg = cfg_mgr.load()
-    t_start = time.time()
+    SAVE_NAME = cfg.fprefix_rc + TIMESTAMP
+    RESULT_DIR = os.path.join(cfg.fpath, SAVE_NAME)
+    SAVE_STUB = os.path.join(RESULT_DIR, SAVE_NAME)
 
-    ### get list of relevant files
+    ### get list of relevant files and compose joblist
     fnames = find_matching_tou_files(cfg)
     fnames = [find_file_case_sensitive(filename) for filename in fnames]
+    jobs: list[JobArgs] = [
+        {
+            "fpath": os.path.join(cfg.fpath, fn),
+            "zmin": cfg.zmin,
+            "zmax": cfg.zmax,
+            "fpref": cfg.fprefix,
+            "fposf": cfg.FPOSTFIX,
+        }
+        for fn in fnames
+    ]
 
     ### run computations
-    defargs = {
-        "zmin": cfg.zmin,
-        "zmax": cfg.zmax,
-        "fpref": cfg.fprefix,
-        "fposf": cfg.FPOSTFIX,
-    }
-    jobs = []
-    for fn in fnames:
-        j = {"fpath": os.path.join(cfg.fpath, fn)}
-        j.update(defargs)
-        jobs.append(j)
-
-    log_result = ResultLogger(total_jobs=len(jobs))
-
-    reslist = []
-    with mp.Pool(cfg.processes) as pool:
-        for j in jobs:
-            res = pool.apply_async(
-                single_file_pipeline,
-                args=(j,),
-                callback=log_result,
-                error_callback=_LOG.error,
-            )
-            reslist.append(res)
-        reslist = [res.get() for res in reslist]
-
-    res_df = merge_results(reslist)
+    t_start = time.time()
+    job_results = run_jobs_multiproc(jobs, cfg.processes)
+    res_df = merge_results(job_results)
+    _LOG.info("Finished analysis, time elapsed: %d s.", int(time.time() - t_start))
 
     # archive results and inputs
-    _LOG.info("Finished analysis, time elapsed: %d s.", int(time.time() - t_start))
     _LOG.info("Starting to save results")
-    save_name = cfg.fprefix_rc + TIMESTAMP
-    res_path = os.path.join(cfg.fpath, save_name)
-    os.mkdir(res_path)
-    _LOG.info("Created output directory at %s", res_path)
+
+    os.mkdir(RESULT_DIR)
+    _LOG.info("Created output directory at %s", RESULT_DIR)
 
     # dump linear result table
-    res_dump_path = os.path.join(res_path, save_name + "_resultdump.csv")
-    res_df.to_csv(res_dump_path, index=False)
-    _LOG.info("Saved result table dump to %s", res_dump_path)
+    fname = SAVE_STUB + "_resultdump.csv"
+    res_df.to_csv(fname, index=False)
+    _LOG.info("Saved result table dump to %s", fname)
 
-    # create a default pivot task for each max_task that has been evaluated
-    piv_task_list = []
-    for tsk in MAX_TASK_LIST:
-        piv_task_list.append({"values": "max_" + tsk, "index": "p0", "columns": "p1"})
-    piv_task_list.append({"values": DF_BEAM_RADIUS_MEAN, "index": "p0", "columns": "p1"})
-    piv_task_list.append({"values": DF_BEAM_RADIUS_STD, "index": "p0", "columns": "p1"})
-    piv_task_list.append({"values": DF_BEAM_RADIUS_PERIOD, "index": "p0", "columns": "p1"})
-
-    # and execute them
-    for tsk in piv_task_list:
+    # Execute Pivot Table tasks and save if success
+    for tsk in PIVOT_TABLE_TASKS:
         try:
-            piv = res_df.pivot(index=tsk["index"], columns=tsk["columns"], values=tsk["values"])
-            name = "_".join([save_name, tsk["index"], tsk["columns"], tsk["values"] + ".csv"])
-            piv_path = os.path.join(res_path, name)
-            piv.to_csv(piv_path)
-            _LOG.info("Saved pivot table %s to %s", str(tsk), piv_path)
+            piv = res_df.pivot(**tsk)
+            fname = "_".join([SAVE_STUB, tsk["index"], tsk["columns"], tsk["values"] + ".csv"])
+            piv.to_csv(fname)
+            _LOG.info("Saved pivot table %s to %s", str(tsk), fname)
         except Exception as e:
             _LOG.error("Could not perform pivot task %s", str(tsk))
             _LOG.error("Intercepted exception, %s", str(e))
 
     # backup config file
-    cfg_bckp_path = os.path.join(res_path, save_name + ".cfg")
-    shutil.copy2(cfg_mgr.cfg_file, cfg_bckp_path)
-    _LOG.info("Copied config file to %s", cfg_bckp_path)
+    fname = SAVE_STUB + ".cfg"
+    shutil.copy2(CFG_FILE, fname)
+    _LOG.info("Copied config file to %s", fname)
 
     # close and move logfile and shutdown
-    log_path = os.path.join(res_path, save_name + ".log")
-    _LOG.info("Unlinking log file. Will be moved to %s", log_path)
+    fname = SAVE_STUB + ".log"
+    _LOG.info("Unlinking log file. Will be moved to %s", fname)
     logfile_handler.close()
-    shutil.move(LOGFNAME, log_path)
+    shutil.move(LOGFNAME, fname)
+
     input("Press enter to exit...")
     sys.exit()
 
