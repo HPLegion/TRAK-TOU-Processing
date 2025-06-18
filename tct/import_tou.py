@@ -2,27 +2,61 @@
 Contains functions to import a TREK TOU output file
 """
 
-import pandas as pd
-from .beam_particle import Particle, Beam
+from __future__ import annotations
 
-_TOU_COLNAMES = ["t", "x", "y", "z"]
+from dataclasses import dataclass
+from typing import Generator
 
-def _read_tou_blockwise(filename, zmin=None, zmax=None):
+import numpy as np
+
+from .beam_particle import Beam
+from .particle import Particle
+
+
+def import_tou_as_particles(
+    filename: str,
+    zmin: float | None = None,
+    zmax: float | None = None,
+) -> list[Particle]:
     """
-    Reads a TREK TOU Trajectory Output File blockwise (one particle at a time)
+    Reads a TOU file and returns a list of Particle objects holding the
+    relevant information in easily accesible form
     If zmin and / or zmax are set, they limit the imported trajectory range by z value
-    Returns a tuple consisting of a
-    --- pandas dataframe with trajectory data [t, x, y, z]
-    --- dictionary with scalar particle properties [id, mass, charge]
     """
+    return list(_stream_particles_from_file(filename, zmin, zmax))
 
-    trajectory = list()
 
-    with open(filename, mode='r') as f:
+def import_tou_as_beam(
+    filename: str,
+    zmin: float | None = None,
+    zmax: float | None = None,
+) -> Beam:
+    """
+    Reads a TOU file and returns a Beam holding the
+    relevant information in easily accesible form
+    If zmin and / or zmax are set, they limit the imported trajectory range by z value
+    """
+    return Beam(import_tou_as_particles(filename, zmin=zmin, zmax=zmax))
+
+
+def _stream_particles_from_file(
+    filename: str,
+    zmin: float | None = None,
+    zmax: float | None = None,
+) -> Generator[Particle, None, None]:
+    """
+    Stream content of a TOU file, one trajectory after another
+    If zmin and / or zmax are set, they limit the imported trajectory range by z value
+    """
+    if "tou" not in str(filename).lower():
+        raise ValueError("Can only import TOU Files")
+
+    tr_buffer: list[list[float]] = []
+    header: _Header | None = None
+
+    with open(filename, mode="r") as f:
         # Skip 5 header lines
-        # print("Printing Fileheader:")
         for _ in range(5):
-            # print(f.readline())
             f.readline()
 
         for line in f:
@@ -31,84 +65,70 @@ def _read_tou_blockwise(filename, zmin=None, zmax=None):
                 continue
             # if new particle read scalar information
             elif "Particle" in line:
-                constants = _parse_trajectory_info(line)
+                header = _Header.parse(line)
             # if trajectory point append to trajectory block
             else:
-                line_data = line.split()
-                line_data = [float(num) for num in line_data]
-                do_append = True
-                if line_data[0] == -1:
-                    do_append = False
-                if zmin is not None and zmin > line_data[3]:
-                    do_append = False
-                if zmax is not None and zmax < line_data[3]:
-                    do_append = False
-                if do_append:
-                    trajectory.append(line_data)
+                if header is None:
+                    raise RuntimeError("Attempting to process data without header.")
+
+                data = [float(num) for num in line.split()]
+
+                block_end = data[0] == -1
+                und_rng = zmin is not None and zmin > data[3]
+                ovr_rng = zmax is not None and zmax < data[3]
+
+                if not (block_end or und_rng or ovr_rng):
+                    tr_buffer.append(data)
 
                 # if last line of trajectory block process trajectory information
-                if line_data[0] == -1:
-                    df_trajectory = pd.DataFrame(trajectory, columns=_TOU_COLNAMES)
-                    yield (df_trajectory, constants)
-                    trajectory = list()
+                if block_end:
+                    tr = np.array(tr_buffer)
+                    trh = header
 
-def _parse_trajectory_info(line):
-    """
-    reads the info from a trajectory header line
-    """
-    line_data = line.split()
-    try:
-        particle_id = int(line_data[1])
-    except ValueError:
-        particle_id = -1
-    if "Current:" in line_data:
-        ind = line_data.index("Current:")
-        current = float(line_data[ind + 1])
-    else:
-        current = float("nan")
-    if "Mass:" in line_data:
-        ind = line_data.index("Mass:")
-        mass = float(line_data[ind + 1]) # in proton masses or amu ?
-    else:
-        mass = float("nan")
-    if "Charge:" in line_data:
-        ind = line_data.index("Charge:")
-        charge = float(line_data[ind + 1])
-    else:
-        charge = float("nan")
-    return {"id":particle_id, "mass":mass, "charge":charge, "current":current}
+                    tr_buffer = []
+                    header = None
 
-def _read_tou(filename, zmin=None, zmax=None):
-    """
-    Reads a TREK TOU Trajectory Output File
-    If zmin and / or zmax are set, they limit the imported trajectory range by z value
-    Returns a tuple consisting of two lists which each containing
-    --- a pandas dataframe with trajectory data [t, x, y, z]
-    --- a dictionary with scalar particle properties [id, mass, charge]
-    for each particle in the input file
-    """
-    if "tou" not in str(filename).lower():
-        raise ValueError("Can only import TOU Files")
-    trajectories = []
-    constants = []
-    for block in _read_tou_blockwise(filename, zmin, zmax):
-        trajectories.append(block[0])
-        constants.append(block[1])
-    return (trajectories, constants)
+                    yield Particle(
+                        pid=trh.pid,
+                        mass=trh.mass,
+                        charge=trh.charge,
+                        current=trh.current,
+                        t=tr[:, 0],
+                        x=tr[:, 1],
+                        y=tr[:, 2],
+                        z=tr[:, 3],
+                    )
 
-def import_tou_as_particles(filename, zmin=None, zmax=None):
-    """
-    Reads a TOU file and returns a list of TouParticle objects holding the
-    relevant information in easily accesible form
-    If zmin and / or zmax are set, they limit the imported trajectory range by z value
-    """
-    trajectories, constants = _read_tou(filename, zmin, zmax)
-    return [Particle(trajectories[k], constants[k]) for k in range(len(trajectories))]
 
-def import_tou_as_beam(filename, zmin=None, zmax=None):
-    """
-    Reads a TOU file and returns a TouBeam holding the
-    relevant information in easily accesible form
-    If zmin and / or zmax are set, they limit the imported trajectory range by z value
-    """
-    return Beam(import_tou_as_particles(filename, zmin=zmin, zmax=zmax))
+@dataclass(frozen=True)
+class _Header:
+    pid: int  #: Particle ID
+    mass: float  #: Mass (amu)
+    charge: int  #: Charge number
+    current: float  #: Current (unknown units)
+
+    @staticmethod
+    def parse(text: str) -> _Header:
+        """
+        reads the info from a trajectory header line
+        """
+        data = text.split()
+
+        def _get_field_value(key: str) -> float:
+            if key in data:
+                i = data.index(key)
+                return float(data[i + 1])
+            else:
+                return float("nan")
+
+        try:
+            particle_id = int(data[1])
+        except ValueError:
+            particle_id = -1
+
+        return _Header(
+            pid=particle_id,
+            mass=_get_field_value("Mass:"),
+            charge=_get_field_value("Charge:"),
+            current=_get_field_value("Current:"),
+        )
