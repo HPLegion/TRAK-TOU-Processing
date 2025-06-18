@@ -13,6 +13,7 @@ import shutil
 import sys
 import time
 from collections import OrderedDict
+from multiprocessing import RLock
 from typing import TYPE_CHECKING
 from typing import TypedDict
 
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
 
 
 __version__ = "2019-04-01 10:00"
+_LOG = logging.getLogger(__name__)
 
 ### Constants
 # Names of dataframe columns
@@ -72,7 +74,7 @@ def find_file_case_sensitive(filepath: str) -> str:
     return os.path.join(d, files[k])
 
 
-_val_pattern = re.compile(r"(-?\d+_?\d*)")
+_FNAME_VAL_PATTERN = re.compile(r"(-?\d+_?\d*)")
 
 
 def parse_filename(fname: str, fpref: str, fposf: str) -> dict[str, float]:
@@ -81,7 +83,7 @@ def parse_filename(fname: str, fpref: str, fposf: str) -> dict[str, float]:
     fname = fname.replace(fpref, "")
     fname = fname.replace(fposf, "")
 
-    vals = re.findall(_val_pattern, fname)
+    vals = re.findall(_FNAME_VAL_PATTERN, fname)
 
     return {"p" + str(i): float(v.replace("_", ".")) for i, v in enumerate(vals)}
 
@@ -136,23 +138,45 @@ def single_file_pipeline(job: JobArgs) -> OrderedDict:
     return out
 
 
+class ResultLogger:
+    def __init__(self, total_jobs: int) -> None:
+        self._total = total_jobs
+        self._processed = 0
+        self._lock = RLock()
+
+    def __call__(self, result) -> None:
+        """
+        Passes the results of a single file to the logger
+        """
+        with self._lock:
+            self._processed = self._processed + 1
+
+            _LOG.info("Processed %d / %d", self._processed, self._total)
+            _LOG.info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Incoming Result ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            for key, val in result.items():
+                if isinstance(val, str):
+                    _LOG.info("{:<30}: {}".format(key, val))
+                else:
+                    _LOG.info("{:<30}: {:.3e}".format(key, val))
+            _LOG.info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  End of Result  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+
+
+def configure_logging(logfile: str) -> logging.FileHandler:
+    """Sets up logging to STDOUT and a logfile"""
+    _LOG.setLevel(logging.INFO)
+    file_handler = logging.FileHandler(logfile)
+    stream_handler = logging.StreamHandler()
+    _LOG.addHandler(file_handler)
+    _LOG.addHandler(stream_handler)
+    return file_handler
+
+
 def main():
     """MAIN MONSTROSITY"""
     TIMESTAMP = time.strftime("%Y-%m-%d-%H-%M-%S")
     LOGFNAME = "tou_batch_" + TIMESTAMP + ".log"
 
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-    logger_file_handler = logging.FileHandler(LOGFNAME)
-    logger_stream_handler = logging.StreamHandler()
-    logger.addHandler(logger_file_handler)
-    logger.addHandler(logger_stream_handler)
-
-    class Progress:
-        """Simple static class for keeping track of the progress"""
-
-        total = 0
-        current = 0
+    logfile_handler = configure_logging(LOGFNAME)
 
     class Config:
         """Static class that deals with everything related to the config and settings"""
@@ -213,12 +237,12 @@ def main():
                             val = val.strip()
                             cfg[key] = val
                         except Exception as e:
-                            logger.exception("Error while parsing line: %s", line)
+                            _LOG.exception("Error while parsing line: %s", line)
                             raise e
                     else:
-                        logger.error("Unknown config parameter in line: %s", line)
+                        _LOG.error("Unknown config parameter in line: %s", line)
                         raise ValueError()
-            logger.info("Read config from file: %s", str(cfg))
+            _LOG.info("Read config from file: %s", str(cfg))
             return cfg
 
         @classmethod
@@ -243,7 +267,7 @@ def main():
                 try:
                     cls.ZMIN = float(zmin)
                 except Exception as e:
-                    logger.exception("Error while trying to cast zmin='%s' to float.", zmin)
+                    _LOG.exception("Error while trying to cast zmin='%s' to float.", zmin)
                     raise e
             zmax = cfg.get(cls._field_zmax, "")
             if zmax == "":
@@ -252,7 +276,7 @@ def main():
                 try:
                     cls.ZMAX = float(zmax)
                 except Exception as e:
-                    logger.exception("Error while trying to cast zmax='%s' to float.", zmax)
+                    _LOG.exception("Error while trying to cast zmax='%s' to float.", zmax)
                     raise e
 
             processes = cfg.get(cls._field_processes, "")
@@ -262,22 +286,22 @@ def main():
                 try:
                     cls.PROCESSES = int(processes)
                 except Exception as e:
-                    logger.exception("Error while trying to cast processes='%s' to int.", processes)
+                    _LOG.exception("Error while trying to cast processes='%s' to int.", processes)
                     raise e
 
-            logger.info("Set Config.FPATH to %s", cls.FPATH)
-            logger.info("Set Config.FPREFIX_RC to %s", cls.FPREFIX_RC)
-            logger.info("Set Config.FPREFIX to %s", cls.FPREFIX)
-            logger.info("Set Config.ZMIN to %s", str(cls.ZMIN))
-            logger.info("Set Config.ZMAX to %s", str(cls.ZMAX))
-            logger.info("Set Config.PROCESSES to %s", str(cls.PROCESSES))
+            _LOG.info("Set Config.FPATH to %s", cls.FPATH)
+            _LOG.info("Set Config.FPREFIX_RC to %s", cls.FPREFIX_RC)
+            _LOG.info("Set Config.FPREFIX to %s", cls.FPREFIX)
+            _LOG.info("Set Config.ZMIN to %s", str(cls.ZMIN))
+            _LOG.info("Set Config.ZMAX to %s", str(cls.ZMAX))
+            _LOG.info("Set Config.PROCESSES to %s", str(cls.PROCESSES))
 
     def get_files():
         """Acquire all matching TOU filenames"""
         files = os.listdir(Config.FPATH)
         files = [f.lower() for f in files]
         files = [f for f in files if (Config.FPOSTFIX in f and Config.FPREFIX in f)]
-        logger.info("Found %d TOU files with matching prefix.", len(files))
+        _LOG.info("Found %d TOU files with matching prefix.", len(files))
         return files
 
     def merge_results(reslist):
@@ -291,30 +315,16 @@ def main():
         df = df.sort_values(avail_params)
         return df
 
-    def log_results(result):
-        """
-        Passes the results of a single file to the logger
-        """
-        Progress.current = Progress.current + 1
-        logger.info("Processed %d / %d", Progress.current, Progress.total)
-        logger.info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Incoming Result ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        for key, val in result.items():
-            if isinstance(val, str):
-                logger.info("{:<30}: {}".format(key, val))
-            else:
-                logger.info("{:<30}: {:.3e}".format(key, val))
-        logger.info("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  End of Result  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-
     def main_routine():
         """The main routine, orchestrating the rest"""
-        logger.info("This is the %s version of this script", __version__)
+        _LOG.info("This is the %s version of this script", __version__)
         ### check if config exists
         if not Config.exists():
             print("Could not find config file. Attempting to create one...")
             Config.create()
             print("Please adjust config file and restart.")
             input("Press enter to exit...")
-            logger_file_handler.close()
+            logfile_handler.close()
             os.remove(LOGFNAME)
             sys.exit()
 
@@ -339,7 +349,7 @@ def main():
             j.update(defargs)
             jobs.append(j)
 
-        Progress.total = len(jobs)
+        log_result = ResultLogger(total_jobs=len(jobs))
 
         reslist = []
         with mp.Pool(Config.PROCESSES) as pool:
@@ -347,8 +357,8 @@ def main():
                 res = pool.apply_async(
                     single_file_pipeline,
                     args=(j,),
-                    callback=log_results,
-                    error_callback=logger.info,
+                    callback=log_result,
+                    error_callback=_LOG.error,
                 )
                 reslist.append(res)
             reslist = [res.get() for res in reslist]
@@ -356,17 +366,17 @@ def main():
         res_df = merge_results(reslist)
 
         # archive results and inputs
-        logger.info("Finished analysis, time elapsed: %d s.", int(time.time() - t_start))
-        logger.info("Starting to save results")
+        _LOG.info("Finished analysis, time elapsed: %d s.", int(time.time() - t_start))
+        _LOG.info("Starting to save results")
         save_name = Config.FPREFIX_RC + TIMESTAMP
         res_path = os.path.join(Config.FPATH, save_name)
         os.mkdir(res_path)
-        logger.info("Created output directory at %s", res_path)
+        _LOG.info("Created output directory at %s", res_path)
 
         # dump linear result table
         res_dump_path = os.path.join(res_path, save_name + "_resultdump.csv")
         res_df.to_csv(res_dump_path, index=False)
-        logger.info("Saved result table dump to %s", res_dump_path)
+        _LOG.info("Saved result table dump to %s", res_dump_path)
 
         # create a default pivot task for each max_task that has been evaluated
         piv_task_list = []
@@ -383,20 +393,20 @@ def main():
                 name = "_".join([save_name, tsk["index"], tsk["columns"], tsk["values"] + ".csv"])
                 piv_path = os.path.join(res_path, name)
                 piv.to_csv(piv_path)
-                logger.info("Saved pivot table %s to %s", str(tsk), piv_path)
+                _LOG.info("Saved pivot table %s to %s", str(tsk), piv_path)
             except Exception as e:
-                logger.error("Could not perform pivot task %s", str(tsk))
-                logger.error("Intercepted exception, %s", str(e))
+                _LOG.error("Could not perform pivot task %s", str(tsk))
+                _LOG.error("Intercepted exception, %s", str(e))
 
         # backup config file
         cfg_bckp_path = os.path.join(res_path, save_name + ".cfg")
         shutil.copy2(Config.CFGFILE, cfg_bckp_path)
-        logger.info("Saved config file at %s", cfg_bckp_path)
+        _LOG.info("Saved config file at %s", cfg_bckp_path)
 
         # close and move logfile and shutdown
         log_path = os.path.join(res_path, save_name + ".log")
-        logger.info("Unlinking log file. Will be moved to %s", log_path)
-        logger_file_handler.close()
+        _LOG.info("Unlinking log file. Will be moved to %s", log_path)
+        logfile_handler.close()
         shutil.move(LOGFNAME, log_path)
         input("Press enter to exit...")
         sys.exit()
